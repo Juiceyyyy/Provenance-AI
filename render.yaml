@@ -1,0 +1,69 @@
+services:
+  - type: worker
+    name: provenance-ingestion-worker
+    runtime: docker
+    region: singapore
+    plan: starter
+    autoDeployTrigger: checksPass
+    dockerfilePath: ./apps/worker/Dockerfile
+    dockerContext: ./apps/worker
+    dockerCommand: grounded-worker
+    maxShutdownDelaySeconds: 300
+    buildFilter:
+      paths:
+        - apps/worker/**
+        - render.yaml
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: EMBEDDING_DIMENSIONS
+        value: "1536"
+      - key: WORKER_BATCH_SIZE
+        value: "2"
+      - key: WORKER_POLL_SECONDS
+        value: "3"
+      - key: MALWARE_SCAN_REQUIRED
+        value: "false"
+      - key: MAX_SOURCE_BYTES
+        value: "52428800"
+
+  - type: cron
+    name: provenance-source-refresh
+    runtime: docker
+    region: singapore
+    plan: starter
+    schedule: "17 * * * *"
+    autoDeployTrigger: checksPass
+    dockerfilePath: ./apps/worker/Dockerfile
+    dockerContext: ./apps/worker
+    dockerCommand: grounded-refresh-due
+    buildFilter:
+      paths:
+        - apps/worker/**
+        - knowledge/manifests/**
+        - render.yaml
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: EMBEDDING_DIMENSIONS
+        value: "1536"
+      - key: MALWARE_SCAN_REQUIRED
+        value: "false"
+      - key: MAX_SOURCE_BYTES
+        value: "52428800"
