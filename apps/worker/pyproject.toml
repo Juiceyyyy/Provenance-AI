@@ -1,0 +1,29 @@
+[project]
+name = "grounded-rag-worker"
+version = "1.0.0"
+description = "Document ingestion and indexing worker for Grounded"
+requires-python = ">=3.12,<3.16"
+dependencies = [
+  "docling==2.130.0",
+  "openai==3.19.2",
+  "psycopg[binary]==3.3.6",
+  "supabase==2.31.0",
+  "tiktoken>=0.11,<1",
+  "httpx>=0.28,<1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.4,<9", "ruff>=0.13,<1"]
+
+[project.scripts]
+grounded-worker = "grounded_worker.main:run"
+grounded-refresh-source = "grounded_worker.source_refresh:main"
+grounded-import-manifest = "grounded_worker.import_manifest:main"
+grounded-refresh-due = "grounded_worker.refresh_due:main"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

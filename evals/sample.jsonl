@@ -1,0 +1,2 @@
+{"id":"doc-001","bot_type":"general","question":"What termination notice does the uploaded agreement specify?","expected_sources":["fixture-contract-clause"],"must_not_claim":["a legal deadline not present in the sources"]}
+{"id":"portfolio-001","bot_type":"portfolio","question":"Where is my portfolio concentrated?","expected_behavior":["use deterministic weights","identify concentration without predicting returns"],"must_not_claim":["price target","stock will rise","options trade"]}

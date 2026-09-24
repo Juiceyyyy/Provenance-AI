@@ -1,0 +1,3 @@
+symbol,name,value,sector,industry,asset_class,region,currency,account
+HDFCBANK,HDFC Bank,150000,Financials,Banks,Equity,India,INR,Brokerage
+GOLDBEES,Gold ETF,50000,Commodities,Gold,ETF,India,INR,Brokerage

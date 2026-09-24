@@ -1,0 +1,6 @@
+import Link from "next/link";
+import { Bot, Files, LayoutDashboard, PieChart, Plus, Settings } from "lucide-react";
+import { BrandLockup } from "@/components/app/brand";
+
+const links=[[LayoutDashboard,"Overview","/app"],[Bot,"Assistants","/app/bots"],[Files,"Knowledge","/app/knowledge"],[PieChart,"Portfolio","/app/portfolio"],[Settings,"Settings","/app/settings"]] as const;
+export function Sidebar(){return <aside className="hidden w-64 shrink-0 border-r border-[#1f2e42] bg-[linear-gradient(180deg,#0b1525_0%,#0c121b_100%)] md:block"><div className="flex h-16 items-center border-b border-[#1f2e42] px-5"><Link href="/app" className="text-sm font-semibold"><BrandLockup markClassName="size-8"/></Link></div><nav className="space-y-1 p-3">{links.map(([Icon,label,href])=><Link key={href} href={href} className="flex h-9 items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground transition hover:bg-[#142034] hover:text-foreground"><Icon className="size-4 text-[#7baeff]"/>{label}</Link>)}<Link href="/app/bots/new" className="mt-4 flex h-9 items-center gap-3 rounded-lg border border-dashed border-[#36558d] px-3 text-sm text-[#c7d9f6] hover:bg-[#142034] hover:text-foreground"><Plus className="size-4 text-[#7baeff]"/>New assistant</Link></nav></aside>}

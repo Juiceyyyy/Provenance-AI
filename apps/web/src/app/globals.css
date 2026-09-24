@@ -1,0 +1,74 @@
+@import "tailwindcss";
+@import "streamdown/styles.css";
+
+:root {
+  --background: #0a0d14;
+  --foreground: #f7f8fb;
+  --card: #111722;
+  --card-foreground: #f7f8fb;
+  --muted: #151c28;
+  --muted-foreground: #9aa6bb;
+  --border: #243042;
+  --primary: #3b82f6;
+  --primary-foreground: #f8fbff;
+  --accent: #162031;
+  --accent-foreground: #f7f8fb;
+  --danger: #ef4444;
+  --brand-navy: #0b1f3b;
+  --brand-blue: #3b82f6;
+  --brand-slate: #64748b;
+  --brand-pale: #e5eef8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+}
+
+* { border-color: var(--border); }
+html { color-scheme: dark; }
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% -10%, rgba(59,130,246,.14), transparent 24rem),
+    radial-gradient(circle at 88% 0%, rgba(229,238,248,.07), transparent 26rem),
+    linear-gradient(180deg, rgba(11,31,59,.08), transparent 24rem),
+    var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+button, input, textarea, select { font: inherit; }
+::selection { background: rgba(59,130,246,.35); color: white; }
+
+a { transition: color .18s ease; }
+
+.brand-card {
+  background: linear-gradient(180deg, rgba(255,255,255,.025), rgba(255,255,255,.01));
+  box-shadow: 0 10px 32px rgba(5, 10, 20, 0.16);
+}
+
+.brand-glow {
+  box-shadow: 0 0 0 1px rgba(59,130,246,.16), 0 18px 42px rgba(11,31,59,.2);
+}
+
+.prose-ai { color: #e5e7eb; line-height: 1.75; }
+.prose-ai h1,.prose-ai h2,.prose-ai h3 { color: #fafafa; font-weight: 650; margin: 1.2em 0 .55em; }
+.prose-ai h1 { font-size: 1.45rem; }
+.prose-ai h2 { font-size: 1.2rem; }
+.prose-ai h3 { font-size: 1.05rem; }
+.prose-ai p { margin: .65em 0; }
+.prose-ai ul,.prose-ai ol { padding-left: 1.4rem; margin: .65em 0; }
+.prose-ai li { margin: .25em 0; }
+.prose-ai code { background:#181c25; border:1px solid #2b3a52; border-radius:.35rem; padding:.08rem .28rem; }
+.prose-ai pre { overflow:auto; padding:1rem; background:#0f141d; border:1px solid #273347; border-radius:.75rem; }
+.prose-ai a { text-decoration: underline; text-underline-offset: 3px; }
+.prose-ai blockquote { border-left:2px solid #5f83c1; padding-left:1rem; color:#b4c0d4; }

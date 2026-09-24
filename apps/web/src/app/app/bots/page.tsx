@@ -1,0 +1,7 @@
+import Link from "next/link";
+import { Plus } from "lucide-react";
+import { requireUser } from "@/lib/auth";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+export default async function BotsPage(){const {supabase}=await requireUser();const {data:bots}=await supabase.from("bots").select("id,name,description,bot_type,jurisdiction_country,jurisdiction_region,updated_at").order("updated_at",{ascending:false});return <div><div className="flex items-center justify-between"><div><h1 className="text-2xl font-semibold">Assistants</h1><p className="mt-1 text-sm text-muted-foreground">Specialized behavior + knowledge + tools.</p></div><Link href="/app/bots/new"><Button><Plus className="size-4"/>New</Button></Link></div><div className="mt-7 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{bots?.map(bot=><Link key={bot.id} href={`/app/bots/${bot.id}`}><Card className="h-full p-5 transition hover:border-[#35548e]"><div className="flex items-center gap-2"><h2 className="font-medium">{bot.name}</h2><Badge>{bot.bot_type}</Badge></div><p className="mt-2 min-h-12 text-sm leading-6 text-muted-foreground">{bot.description}</p>{bot.jurisdiction_country&&<p className="mt-4 text-xs text-muted-foreground">{[bot.jurisdiction_country,bot.jurisdiction_region].filter(Boolean).join(" · ")}</p>}</Card></Link>)}</div></div>}

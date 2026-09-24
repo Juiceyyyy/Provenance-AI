@@ -1,0 +1,20 @@
+{
+  "pack": {
+    "name": "Example Jurisdiction Legal Pack",
+    "slug": "legal-example-jurisdiction",
+    "description": "Replace with a curated, reviewed set of authoritative sources.",
+    "jurisdiction_country": "Example Country",
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "Example official legislation source",
+      "canonical_url": "https://example.gov/legislation/current.pdf",
+      "publisher": "Example Government",
+      "authority_level": "official",
+      "license_type": "verify-before-production",
+      "refresh_interval_hours": 24
+    }
+  ]
+}
