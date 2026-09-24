@@ -81,10 +81,10 @@ with permitted as (
     and (d.effective_until is null or d.effective_until >= current_date)
 ),
 semantic as (
-  select p.id, row_number() over(order by p.embedding <=> p_query_embedding) as rank
+  select p.id, row_number() over(order by p.embedding OPERATOR(extensions.<=>) p_query_embedding) as rank
   from permitted p
   where p.embedding is not null
-  order by p.embedding <=> p_query_embedding
+  order by p.embedding OPERATOR(extensions.<=>) p_query_embedding
   limit greatest(20, least(200, p_match_count*5))
 ),
 lexical as (
