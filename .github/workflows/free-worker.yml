@@ -42,6 +42,10 @@ jobs:
         shell: bash
         run: |
           if [[ -n "$DATABASE_URL" && -n "$SUPABASE_URL" && -n "$SUPABASE_SERVICE_ROLE_KEY" && -n "$CLOUDFLARE_ACCOUNT_ID" && -n "$CLOUDFLARE_API_TOKEN" ]]; then
+            if [[ "$DATABASE_URL" == *"db."*".supabase.co"* ]]; then
+              echo "DATABASE_URL points to Supabase's direct database host. GitHub-hosted runners may not have IPv6 reachability. Use the Supabase Session Pooler URI instead." >&2
+              exit 1
+            fi
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
@@ -92,8 +96,13 @@ jobs:
         working-directory: apps/worker
         run: grounded-worker
 
-      - name: Report source refresh failures
+      - name: Report source refresh warnings
         if: steps.config.outputs.ready == 'true' && steps.refresh.outcome == 'failure'
         run: |
-          echo "One or more authoritative source refreshes failed. Private queued-document ingestion still ran successfully."
-          exit 1
+          echo "::warning::One or more authoritative source refreshes were blocked or unavailable. Private queued-document ingestion completed successfully."
+          {
+            echo "### Authoritative source refresh warning"
+            echo
+            echo "One or more registered government sources could not be refreshed from this GitHub-hosted runner."
+            echo "This does not block private document ingestion. Review the refresh-step logs for the affected official URLs."
+          } >> "$GITHUB_STEP_SUMMARY"
