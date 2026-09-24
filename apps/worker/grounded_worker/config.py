@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 
 
 def required(name: str) -> str:
@@ -35,7 +35,7 @@ class Settings:
     max_source_bytes: int
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         dimensions = int(os.getenv("EMBEDDING_DIMENSIONS", "1536"))
         if dimensions != 1536:
             raise RuntimeError("EMBEDDING_DIMENSIONS must remain 1536 unless the database vector schema is migrated too")
