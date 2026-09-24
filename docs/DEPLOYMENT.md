@@ -1,77 +1,123 @@
 # Deployment
 
-## 1. Supabase
+This repository's reference deployment is intentionally zero-billable. Do not enable paid plans, paid model fallbacks, or usage-based infrastructure unless you explicitly intend to do so.
 
-Create a new Supabase project in the region required by your data-residency policy. Apply the migrations in `supabase/migrations` in order. Then run the Supabase security and performance advisors and resolve findings before launch.
+## 1. Supabase Free
+
+Create a dedicated Supabase Free project in the region required by your data-residency policy. Apply every migration in `supabase/migrations` in lexical order, then run the Supabase security and performance advisors.
 
 Required web environment variables:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `AI_GATEWAY_API_KEY` or `OPENAI_API_KEY`
-- model variables from `.env.example`
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL=gemini-3.8-flash`
+- `GEMINI_EMBEDDING_MODEL=gemini-embedding-2`
+- `ALLOW_BILLABLE_AI=false`
 
-Required worker secrets:
+Paid-provider variables may remain unset. The application refuses to use them unless `ALLOW_BILLABLE_AI=true` is explicitly configured.
 
-- `DATABASE_URL` (direct/pooler connection appropriate for long-lived worker)
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `OPENAI_API_KEY`
+## 2. Web: Vercel Hobby
 
-## 2. Web
+Import this repository into a new Vercel Hobby project. Do not attach an existing unrelated project.
 
-Deploy `apps/web` to Vercel with Node 22. Set production environment variables in Vercel, not in source control. Use preview deployments for pull requests and promote only after CI/evals pass.
+Set Root Directory to `apps/web` and configure:
 
-## 3. Worker
+```text
+NEXT_PUBLIC_SUPABASE_URL=<project URL>
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable key>
+GEMINI_API_KEY=<free-tier Gemini key>
+GEMINI_MODEL=gemini-3.8-flash
+GEMINI_EMBEDDING_MODEL=gemini-embedding-2
+ALLOW_BILLABLE_AI=false
+DAILY_MESSAGE_LIMIT=200
+MAX_RAG_CHUNKS=10
+```
 
-Build `apps/worker/Dockerfile` and run at least one long-lived replica on a container service. The job claim uses PostgreSQL row locking, so replicas can scale horizontally. Give the container enough memory for Docling/OCR workloads and use CPU-only PyTorch unless GPU inference is intentionally configured.
+Set `NEXT_PUBLIC_APP_URL` to the production Vercel origin after the first deployment if the application route needs it.
 
-## 4. Knowledge packs
+Keep Vercel AI Gateway/OpenAI credentials unset for the zero-cost deployment.
 
-Create reviewed JSON manifests and import with `grounded-import-manifest`. Register exact authoritative/licensed source URLs, then run `grounded-refresh-source <source-id>` or schedule refreshes with your job platform. Do not use the example manifest in production.
+## 3. Free ingestion worker: GitHub Actions
 
-## 5. Go-live gates
+The public repository contains `.github/workflows/free-worker.yml`. It runs every 15 minutes and can also be started manually. Standard GitHub-hosted runners for public repositories are used instead of a paid always-on worker.
 
-- Auth signup/login/email flow verified.
-- Upload -> worker -> ready -> retrieval -> citation flow verified with PDF/DOCX/XLSX/image fixtures.
-- Two-tenant RLS test passes.
-- Legal/tax/health source packs reviewed for authority, effective dates and licenses.
-- Backups/PITR and restore drill configured.
-- Error monitoring, cost monitoring and provider quotas configured.
-- Terms/privacy/professional-assistant disclosures reviewed for launch jurisdictions.
+Add these repository Actions secrets:
+
+```text
+DATABASE_URL
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+GEMINI_API_KEY
+```
+
+The workflow intentionally skips without error when these secrets are absent; it does not fall back to a paid service.
+
+The workflow:
+
+1. Starts the official ClamAV container.
+2. Installs the Python/Docling worker.
+3. Waits until ClamAV is reachable.
+4. Runs `grounded-refresh-due`.
+5. Runs `grounded-worker` in bounded one-shot mode.
+
+The free architecture trades immediate ingestion for cost: uploads may remain queued until the next scheduled run.
+
+## 4. Embeddings
+
+Both document chunks and user queries use `gemini-embedding-2` with exactly 1536 output dimensions. The pgvector column is also `vector(1536)`, so never change `EMBEDDING_DIMENSIONS` without a coordinated database migration and complete re-embedding of stored content.
+
+Do not mix embedding models in the same vector index. If the embedding model changes, re-index all content before querying it with the new model.
+
+## 5. Knowledge packs
+
+India starter pack definitions and official-source registries are included in migration `202609240007_india_core_packs.sql` and under `knowledge/manifests/`.
+
+The scheduler fetches only registered sources, re-validates redirect destinations, blocks private/link-local/loopback destinations, caps downloads, hashes content, versions changes and queues changed versions for ingestion.
+
+A source registry is not a claim of exhaustive legal/tax coverage. Review authority, currency, effective dates and licensing before relying on a pack professionally.
 
 ## 6. Supabase Auth email templates
 
-Because the app uses cookie-based SSR auth, configure the **Confirm signup** email template to send the token hash to the app route rather than relying on an implicit browser-only session. Set the confirmation link to the equivalent of:
+Because the app uses cookie-based SSR auth, configure the Confirm signup email template to send the token hash to the app route:
 
 ```text
 {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/app
 ```
 
-Set Supabase Auth `Site URL` to the production web origin and add preview/local redirect URLs deliberately. Verify the full email -> `/auth/confirm` -> authenticated `/app` flow before launch.
+Set Supabase Auth Site URL to the production web origin and deliberately allow-list preview/local redirect URLs.
 
-### Password reset template
-
-Configure the **Reset password** email template for the same server-side token exchange pattern. The recovery link should resolve to:
+For password reset use:
 
 ```text
 {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password
 ```
 
-The application sends `resetPasswordForEmail` with `/auth/confirm?next=/reset-password` as the redirect target, verifies the recovery token server-side, then lets the authenticated recovery session call `updateUser({ password })`. Keep production redirect URLs allow-listed in Supabase Auth.
+Verify the full email -> `/auth/confirm` -> authenticated application flow before launch.
 
 ## 7. Malware scanning
 
-Run a private ClamAV/clamd service reachable only by the ingestion worker. Set:
+Production ingestion is configured fail-closed. The free GitHub Actions workflow exposes ClamAV only inside the runner job and sets:
 
 ```text
-CLAMAV_HOST=<private-clamd-host>
+CLAMAV_HOST=127.0.0.1
 CLAMAV_PORT=3310
 MALWARE_SCAN_REQUIRED=true
 ```
 
-The worker fails closed when `MALWARE_SCAN_REQUIRED=true` and the scanner is unavailable. Do not expose clamd directly to the public internet.
+If ClamAV is unavailable, ingestion must fail rather than parsing unscanned files.
 
-## 8. Source refresh scheduler
+## 8. Go-live gates
 
-Schedule `grounded-refresh-due` from the worker environment (for example, hourly). The refresh client blocks loopback/private/link-local source targets, re-validates redirect destinations, limits redirects, and caps downloaded bytes. Production infrastructure should still enforce outbound network policy/egress controls because application-level SSRF checks are defense in depth, not a substitute for network isolation.
+- GitHub CI passes typecheck, lint, Next.js production build, Ruff and pytest.
+- Supabase security advisor has no unresolved security findings.
+- Auth signup/login/email/password-recovery flow verified on the production origin.
+- Upload -> scheduled worker -> ready -> retrieval -> citation flow verified with fixtures.
+- Two-user tenant-isolation test passes.
+- India legal/tax source pack freshness and source licenses reviewed.
+- Gemini free-tier quotas are configured/understood; quota exhaustion must fail rather than invoke a paid provider.
+- Terms/privacy and professional-assistant disclosures are reviewed for launch jurisdictions.
+
+## 9. Scaling later
+
+The free worker is intentionally not an always-on production queue consumer. If usage eventually justifies paid infrastructure, the same `FOR UPDATE SKIP LOCKED` worker can run as one or more long-lived replicas. That change should be an explicit deployment decision, not an automatic fallback.
