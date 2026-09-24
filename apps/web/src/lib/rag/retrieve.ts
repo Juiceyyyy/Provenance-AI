@@ -1,9 +1,45 @@
 import "server-only";
-import { embed } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { embeddingModel } from "@/lib/ai/models";
 import { env } from "@/lib/env";
 import type { RetrievedChunk } from "./types";
+
+const EMBEDDING_DIMENSIONS = 1536;
+
+type GeminiEmbeddingResponse = {
+  embedding?: { values?: number[] };
+};
+
+async function embedQuery(value: string): Promise<number[]> {
+  if (!env.GEMINI_API_KEY) {
+    throw new Error("Free-tier embeddings are not configured. Set GEMINI_API_KEY.");
+  }
+
+  const model = encodeURIComponent(env.GEMINI_EMBEDDING_MODEL);
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-goog-api-key": env.GEMINI_API_KEY,
+    },
+    body: JSON.stringify({
+      content: { parts: [{ text: value.slice(0, 12_000) }] },
+      output_dimensionality: EMBEDDING_DIMENSIONS,
+    }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const detail = (await response.text().catch(() => "")).slice(0, 500);
+    throw new Error(`Gemini embedding request failed (${response.status})${detail ? `: ${detail}` : ""}`);
+  }
+
+  const body = (await response.json()) as GeminiEmbeddingResponse;
+  const embedding = body.embedding?.values;
+  if (!Array.isArray(embedding) || embedding.length !== EMBEDDING_DIMENSIONS) {
+    throw new Error(`Gemini returned an invalid embedding dimension: ${embedding?.length ?? 0}`);
+  }
+  return embedding;
+}
 
 export async function retrieveChunks(
   supabase: SupabaseClient,
@@ -11,11 +47,7 @@ export async function retrieveChunks(
   query: string,
 ): Promise<RetrievedChunk[]> {
   if (!query.trim()) return [];
-  const { embedding } = await embed({
-    model: embeddingModel(),
-    value: query.slice(0, 12_000),
-    maxRetries: 2,
-  });
+  const embedding = await embedQuery(query);
 
   const { data, error } = await supabase.rpc("hybrid_search_chunks", {
     p_bot_id: botId,
