@@ -2,11 +2,11 @@ import "server-only";
 import { createOpenAI, openai } from "@ai-sdk/openai";
 import { env } from "@/lib/env";
 
-const gemini = env.GEMINI_API_KEY
+const workersAi = env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_API_TOKEN
   ? createOpenAI({
-      apiKey: env.GEMINI_API_KEY,
-      baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
-      name: "gemini",
+      apiKey: env.CLOUDFLARE_API_TOKEN,
+      baseURL: `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/ai/v1`,
+      name: "cloudflare-workers-ai",
     })
   : null;
 
@@ -15,10 +15,12 @@ function hasGatewayAuth() {
 }
 
 export function languageModel() {
-  if (gemini) return gemini(env.GEMINI_MODEL);
+  if (workersAi) return workersAi(env.CLOUDFLARE_AI_MODEL);
 
   if (!env.ALLOW_BILLABLE_AI) {
-    throw new Error("Free-tier AI is not configured. Set GEMINI_API_KEY. Paid AI fallbacks are disabled by default.");
+    throw new Error(
+      "Free-tier AI is not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN. Paid AI fallbacks are disabled by default.",
+    );
   }
 
   if (hasGatewayAuth()) {
@@ -26,7 +28,9 @@ export function languageModel() {
     return env.AI_MODEL;
   }
 
-  if (!env.OPENAI_API_KEY) throw new Error("Set GEMINI_API_KEY, or explicitly enable and configure a paid AI provider.");
+  if (!env.OPENAI_API_KEY) {
+    throw new Error("Configure Cloudflare Workers AI, or explicitly enable and configure a paid AI provider.");
+  }
   if (!env.OPENAI_MODEL) throw new Error("Set OPENAI_MODEL when using OPENAI_API_KEY directly.");
   return openai(env.OPENAI_MODEL);
 }
