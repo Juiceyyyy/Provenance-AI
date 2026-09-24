@@ -3,7 +3,7 @@ services:
     name: provenance-clamav
     runtime: image
     region: singapore
-    plan: starter
+    plan: 2c-4g
     image:
       url: clamav/clamav:1.5.4
 
@@ -11,7 +11,7 @@ services:
     name: provenance-ingestion-worker
     runtime: docker
     region: singapore
-    plan: starter
+    plan: 1c-2g
     autoDeployTrigger: checksPass
     dockerfilePath: ./apps/worker/Dockerfile
     dockerContext: ./apps/worker
