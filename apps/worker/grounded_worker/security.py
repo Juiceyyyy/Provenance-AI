@@ -48,7 +48,7 @@ def validate_public_http_url(url: str) -> str:
 
 def fetch_public_source(url: str, *, max_bytes: int, timeout_seconds: float = 60.0, max_redirects: int = 5) -> tuple[bytes, str, httpx.Headers]:
     current = validate_public_http_url(url)
-    headers = {"User-Agent": "GroundedKnowledgeBot/1.0 (+source-refresh)"}
+    headers = {"User-Agent": "ProvenanceKnowledgeBot/1.0 (+source-refresh)"}
     timeout = httpx.Timeout(timeout_seconds, connect=min(15.0, timeout_seconds))
     with httpx.Client(follow_redirects=False, timeout=timeout, headers=headers) as client:
         for _ in range(max_redirects + 1):
