@@ -55,7 +55,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ botId:
     const oldIds = (linkedJurisdictionPacks ?? []).map((row) => row.knowledge_base_id);
     if (oldIds.length) await supabase.from("bot_knowledge_bases").delete().eq("bot_id", botId).in("knowledge_base_id", oldIds);
 
-    let query = supabase
+    const query = supabase
       .from("knowledge_bases")
       .select("id,jurisdiction_region")
       .eq("visibility", "public")
