@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import re
 from dataclasses import dataclass
 
 
@@ -24,7 +23,8 @@ class Settings:
     database_url: str
     supabase_url: str
     supabase_service_role_key: str
-    gemini_api_key: str
+    cloudflare_account_id: str
+    cloudflare_api_token: str
     embedding_model: str
     embedding_dimensions: int
     poll_seconds: float
@@ -38,12 +38,12 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> Settings:
-        dimensions = int(os.getenv("EMBEDDING_DIMENSIONS", "1536"))
-        if dimensions != 1536:
-            raise RuntimeError("EMBEDDING_DIMENSIONS must remain 1536 unless the database vector schema is migrated too")
-        model = os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-2").strip()
-        if not re.fullmatch(r"[A-Za-z0-9._-]+", model):
-            raise RuntimeError("GEMINI_EMBEDDING_MODEL contains invalid characters")
+        dimensions = int(os.getenv("EMBEDDING_DIMENSIONS", "1024"))
+        if dimensions != 1024:
+            raise RuntimeError("EMBEDDING_DIMENSIONS must remain 1024 unless the database vector schema is migrated too")
+        model = os.getenv("CLOUDFLARE_EMBEDDING_MODEL", "@cf/baai/bge-m3").strip()
+        if not model.startswith("@cf/") or any(ch.isspace() for ch in model):
+            raise RuntimeError("CLOUDFLARE_EMBEDDING_MODEL must be a valid Workers AI @cf/... model ID")
         clamav_host = os.getenv("CLAMAV_HOST", "").strip() or None
         malware_scan_required = env_bool("MALWARE_SCAN_REQUIRED", False)
         if malware_scan_required and not clamav_host:
@@ -52,7 +52,8 @@ class Settings:
             database_url=required("DATABASE_URL"),
             supabase_url=required("SUPABASE_URL"),
             supabase_service_role_key=required("SUPABASE_SERVICE_ROLE_KEY"),
-            gemini_api_key=required("GEMINI_API_KEY"),
+            cloudflare_account_id=required("CLOUDFLARE_ACCOUNT_ID"),
+            cloudflare_api_token=required("CLOUDFLARE_API_TOKEN"),
             embedding_model=model,
             embedding_dimensions=dimensions,
             poll_seconds=float(os.getenv("WORKER_POLL_SECONDS", "3")),
