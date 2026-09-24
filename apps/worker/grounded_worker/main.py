@@ -80,29 +80,28 @@ def claim_job(conn: psycopg.Connection[Any], worker_id: str) -> dict[str, Any] |
         return dict(row)
 
 
-def _gemini_embedding(client: httpx.Client, settings: Settings, text: str) -> list[float]:
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{settings.embedding_model}:embedContent"
-    )
-    payload = {
-        "content": {"parts": [{"text": text}]},
-        "output_dimensionality": settings.embedding_dimensions,
-    }
+def _cloudflare_embedding(client: httpx.Client, settings: Settings, text: str) -> list[float]:
+    url = f"https://api.cloudflare.com/client/v4/accounts/{settings.cloudflare_account_id}/ai/v1/embeddings"
+    payload = {"model": settings.embedding_model, "input": text}
 
     for attempt in range(5):
         response = client.post(
             url,
-            headers={"x-goog-api-key": settings.gemini_api_key, "content-type": "application/json"},
+            headers={
+                "authorization": f"Bearer {settings.cloudflare_api_token}",
+                "content-type": "application/json",
+            },
             json=payload,
         )
         if response.status_code != 429:
             response.raise_for_status()
             body = response.json()
-            values = body.get("embedding", {}).get("values")
+            rows = body.get("data", [])
+            values = rows[0].get("embedding") if rows and isinstance(rows[0], dict) else None
             if not isinstance(values, list) or len(values) != settings.embedding_dimensions:
                 raise RuntimeError(
-                    f"Gemini returned invalid embedding dimensions: {len(values) if isinstance(values, list) else 0}"
+                    "Cloudflare returned invalid embedding dimensions: "
+                    f"{len(values) if isinstance(values, list) else 0}"
                 )
             return [float(value) for value in values]
         if attempt == 4:
@@ -111,11 +110,11 @@ def _gemini_embedding(client: httpx.Client, settings: Settings, text: str) -> li
         delay = float(retry_after) if retry_after and retry_after.replace(".", "", 1).isdigit() else 2**attempt
         time.sleep(min(30.0, max(1.0, delay)))
 
-    raise RuntimeError("Gemini embedding request exhausted retries")
+    raise RuntimeError("Cloudflare embedding request exhausted retries")
 
 
 def embed_chunks(client: httpx.Client, settings: Settings, chunks: list[ParsedChunk]) -> list[list[float]]:
-    return [_gemini_embedding(client, settings, chunk.embedding_text) for chunk in chunks]
+    return [_cloudflare_embedding(client, settings, chunk.embedding_text) for chunk in chunks]
 
 
 def vector_literal(values: list[float]) -> str:
