@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible problem in Provenance AI
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for helping improve Provenance AI. Do not include secrets or private documents."
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Minimal steps to reproduce the problem.
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit / version
+      description: Commit SHA or release version, if known.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Redact tokens, URLs containing secrets, private document content and personal data.
