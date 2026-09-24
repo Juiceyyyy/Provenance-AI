@@ -113,7 +113,7 @@ def refresh(source_id: str) -> None:
                     "update public.source_registry set last_checked_at=now(),last_changed_at=now(),last_content_hash=%s where id=%s",
                     (digest, source_id),
                 )
-        except Exception:  # noqa: BLE001 - compensate upload on any transaction failure
+        except Exception:
             try:
                 storage.storage.from_("documents").remove([storage_path])
             except Exception as cleanup_error:  # noqa: BLE001 - cleanup must not mask original failure
