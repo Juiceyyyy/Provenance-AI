@@ -1,6 +1,6 @@
 # Deployment
 
-This repository's reference deployment is intentionally zero-billable. Do not enable paid plans, paid model fallbacks, or usage-based infrastructure unless you explicitly intend to do so.
+This repository's reference deployment is intentionally zero-billable. Do not enable paid plans, paid model fallbacks, prepaid AI credits, or usage-based infrastructure unless you explicitly intend to do so.
 
 ## 1. Supabase Free
 
@@ -10,10 +10,13 @@ Required web environment variables:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `GEMINI_API_KEY`
-- `GEMINI_MODEL=gemini-3.8-flash`
-- `GEMINI_EMBEDDING_MODEL=gemini-embedding-2`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_AI_MODEL=@cf/zai-org/glm-4.7-flash`
+- `CLOUDFLARE_EMBEDDING_MODEL=@cf/baai/bge-m3`
 - `ALLOW_BILLABLE_AI=false`
+
+Cloudflare Workers AI Free provides a daily no-charge allocation. On a Free Workers plan, exhausting that allocation causes further inference operations to fail rather than charging an overage. Customer Content sent to Workers AI is not used to train models or improve Cloudflare/third-party services without explicit consent under Cloudflare's current data-usage documentation. Verify current provider terms before production launch.
 
 Paid-provider variables may remain unset. The application refuses to use them unless `ALLOW_BILLABLE_AI=true` is explicitly configured.
 
@@ -26,9 +29,10 @@ Set Root Directory to `apps/web` and configure:
 ```text
 NEXT_PUBLIC_SUPABASE_URL=<project URL>
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable key>
-GEMINI_API_KEY=<free-tier Gemini key>
-GEMINI_MODEL=gemini-3.8-flash
-GEMINI_EMBEDDING_MODEL=gemini-embedding-2
+CLOUDFLARE_ACCOUNT_ID=<Cloudflare Account ID>
+CLOUDFLARE_API_TOKEN=<Workers AI API token>
+CLOUDFLARE_AI_MODEL=@cf/zai-org/glm-4.7-flash
+CLOUDFLARE_EMBEDDING_MODEL=@cf/baai/bge-m3
 ALLOW_BILLABLE_AI=false
 DAILY_MESSAGE_LIMIT=200
 MAX_RAG_CHUNKS=10
@@ -48,7 +52,8 @@ Add these repository Actions secrets:
 DATABASE_URL
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
-GEMINI_API_KEY
+CLOUDFLARE_ACCOUNT_ID
+CLOUDFLARE_API_TOKEN
 ```
 
 The workflow intentionally skips without error when these secrets are absent; it does not fall back to a paid service.
@@ -58,16 +63,17 @@ The workflow:
 1. Starts the official ClamAV container.
 2. Installs the Python/Docling worker.
 3. Waits until ClamAV is reachable.
-4. Runs `grounded-refresh-due`.
+4. Attempts `grounded-refresh-due`; a failed external source refresh is recorded but does not block private-document ingestion.
 5. Runs `grounded-worker` in bounded one-shot mode.
+6. Reports a source-refresh failure after document processing, if applicable.
 
 The free architecture trades immediate ingestion for cost: uploads may remain queued until the next scheduled run.
 
 ## 4. Embeddings
 
-Both document chunks and user queries use `gemini-embedding-2` with exactly 1536 output dimensions. The pgvector column is also `vector(1536)`, so never change `EMBEDDING_DIMENSIONS` without a coordinated database migration and complete re-embedding of stored content.
+Both document chunks and user queries use Cloudflare Workers AI `@cf/baai/bge-m3` at exactly 1024 dimensions. The pgvector column is `vector(1024)` after migration `202609240008_cloudflare_embedding_space.sql`.
 
-Do not mix embedding models in the same vector index. If the embedding model changes, re-index all content before querying it with the new model.
+Do not mix embedding models in the same vector index. If the embedding model changes after indexing starts, re-embed every stored chunk and migrate the vector dimension when necessary before querying it with the new model.
 
 ## 5. Knowledge packs
 
@@ -115,7 +121,8 @@ If ClamAV is unavailable, ingestion must fail rather than parsing unscanned file
 - Upload -> scheduled worker -> ready -> retrieval -> citation flow verified with fixtures.
 - Two-user tenant-isolation test passes.
 - India legal/tax source pack freshness and source licenses reviewed.
-- Gemini free-tier quotas are configured/understood; quota exhaustion must fail rather than invoke a paid provider.
+- Cloudflare Workers AI Free quotas are understood; quota exhaustion fails instead of invoking a paid provider.
+- `ALLOW_BILLABLE_AI=false` remains set in production.
 - Terms/privacy and professional-assistant disclosures are reviewed for launch jurisdictions.
 
 ## 9. Scaling later
