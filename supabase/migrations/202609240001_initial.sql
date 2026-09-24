@@ -1,4 +1,4 @@
--- Grounded RAG Platform: production baseline schema
+-- Provenance AI: production baseline schema
 -- Target: Supabase Postgres 17+
 
 create extension if not exists pgcrypto;
@@ -100,8 +100,7 @@ end;
 $$;
 revoke all on function private.handle_new_user() from public, anon, authenticated;
 
--- auth trigger is deliberately idempotent at migration level
- drop trigger if exists on_auth_user_created on auth.users;
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function private.handle_new_user();
@@ -384,62 +383,48 @@ alter table public.portfolio_positions enable row level security;
 
 create policy profiles_select_self on public.profiles for select to authenticated using ((select auth.uid())=id);
 create policy profiles_update_self on public.profiles for update to authenticated using ((select auth.uid())=id) with check ((select auth.uid())=id);
-
 create policy org_select_member on public.organizations for select to authenticated using ((select private.is_org_member(id)));
 create policy org_update_admin on public.organizations for update to authenticated using ((select private.is_org_admin(id))) with check ((select private.is_org_admin(id)));
-
 create policy member_select_same_org on public.organization_members for select to authenticated using ((select private.is_org_member(organization_id)));
 create policy member_insert_admin on public.organization_members for insert to authenticated with check ((select private.is_org_admin(organization_id)));
 create policy member_update_admin on public.organization_members for update to authenticated using ((select private.is_org_admin(organization_id))) with check ((select private.is_org_admin(organization_id)));
 create policy member_delete_admin on public.organization_members for delete to authenticated using ((select private.is_org_admin(organization_id)) and user_id <> (select auth.uid()));
-
 create policy bots_select_org on public.bots for select to authenticated using ((select private.is_org_member(organization_id)));
 create policy bots_insert_org on public.bots for insert to authenticated with check ((select private.is_org_member(organization_id)) and owner_user_id=(select auth.uid()));
 create policy bots_update_owner_admin on public.bots for update to authenticated using (owner_user_id=(select auth.uid()) or (select private.is_org_admin(organization_id))) with check ((select private.is_org_member(organization_id)));
 create policy bots_delete_owner_admin on public.bots for delete to authenticated using (owner_user_id=(select auth.uid()) or (select private.is_org_admin(organization_id)));
-
 create policy kb_select_accessible on public.knowledge_bases for select to authenticated using (visibility='public' or (organization_id is not null and (select private.is_org_member(organization_id))));
 create policy kb_insert_member on public.knowledge_bases for insert to authenticated with check (organization_id is not null and (select private.is_org_member(organization_id)) and owner_user_id=(select auth.uid()) and visibility<>'public');
 create policy kb_update_owner_admin on public.knowledge_bases for update to authenticated using (organization_id is not null and (owner_user_id=(select auth.uid()) or (select private.is_org_admin(organization_id)))) with check (organization_id is not null and (select private.is_org_member(organization_id)) and visibility<>'public');
 create policy kb_delete_owner_admin on public.knowledge_bases for delete to authenticated using (organization_id is not null and (owner_user_id=(select auth.uid()) or (select private.is_org_admin(organization_id))));
-
 create policy bkb_select_via_bot on public.bot_knowledge_bases for select to authenticated using (exists(select 1 from public.bots b where b.id=bot_id));
 create policy bkb_insert_via_bot on public.bot_knowledge_bases for insert to authenticated with check (
   exists(select 1 from public.bots b where b.id=bot_id and (b.owner_user_id=(select auth.uid()) or (select private.is_org_admin(b.organization_id))))
   and exists(select 1 from public.knowledge_bases kb where kb.id=knowledge_base_id)
 );
 create policy bkb_delete_via_bot on public.bot_knowledge_bases for delete to authenticated using (exists(select 1 from public.bots b where b.id=bot_id and (b.owner_user_id=(select auth.uid()) or (select private.is_org_admin(b.organization_id)))));
-
 create policy sources_select_kb on public.source_registry for select to authenticated using (exists(select 1 from public.knowledge_bases kb where kb.id=knowledge_base_id));
 create policy sources_manage_admin on public.source_registry for all to authenticated using (exists(select 1 from public.knowledge_bases kb where kb.id=knowledge_base_id and kb.organization_id is not null and (kb.owner_user_id=(select auth.uid()) or (select private.is_org_admin(kb.organization_id))))) with check (exists(select 1 from public.knowledge_bases kb where kb.id=knowledge_base_id and kb.organization_id is not null and (kb.owner_user_id=(select auth.uid()) or (select private.is_org_admin(kb.organization_id)))));
-
 create policy documents_select_kb on public.documents for select to authenticated using (exists(select 1 from public.knowledge_bases kb where kb.id=knowledge_base_id));
 create policy documents_insert_private on public.documents for insert to authenticated with check (organization_id is not null and (select private.is_org_member(organization_id)) and owner_user_id=(select auth.uid()) and exists(select 1 from public.knowledge_bases kb where kb.id=knowledge_base_id and kb.organization_id=organization_id));
 create policy documents_update_owner_admin on public.documents for update to authenticated using (organization_id is not null and (owner_user_id=(select auth.uid()) or (select private.is_org_admin(organization_id)))) with check (organization_id is not null and (select private.is_org_member(organization_id)));
 create policy documents_delete_owner_admin on public.documents for delete to authenticated using (organization_id is not null and (owner_user_id=(select auth.uid()) or (select private.is_org_admin(organization_id))));
-
 create policy versions_select_doc on public.document_versions for select to authenticated using (exists(select 1 from public.documents d where d.id=document_id));
 create policy versions_insert_doc on public.document_versions for insert to authenticated with check (exists(select 1 from public.documents d where d.id=document_id and d.organization_id is not null and (d.owner_user_id=(select auth.uid()) or (select private.is_org_admin(d.organization_id)))));
 create policy versions_delete_doc on public.document_versions for delete to authenticated using (exists(select 1 from public.documents d where d.id=document_id and d.organization_id is not null and (d.owner_user_id=(select auth.uid()) or (select private.is_org_admin(d.organization_id)))));
-
 create policy chunks_select_kb on public.chunks for select to authenticated using (exists(select 1 from public.knowledge_bases kb where kb.id=knowledge_base_id));
-
 create policy jobs_select_org on public.ingestion_jobs for select to authenticated using (organization_id is not null and (select private.is_org_member(organization_id)));
 create policy jobs_insert_org on public.ingestion_jobs for insert to authenticated with check (organization_id is not null and (select private.is_org_member(organization_id)) and exists(select 1 from public.document_versions v join public.documents d on d.id=v.document_id where v.id=document_version_id and d.organization_id=organization_id));
-
 create policy convo_select_owner on public.conversations for select to authenticated using (owner_user_id=(select auth.uid()));
 create policy convo_insert_owner on public.conversations for insert to authenticated with check (owner_user_id=(select auth.uid()) and (select private.is_org_member(organization_id)) and exists(select 1 from public.bots b where b.id=bot_id and b.organization_id=organization_id));
 create policy convo_update_owner on public.conversations for update to authenticated using (owner_user_id=(select auth.uid())) with check (owner_user_id=(select auth.uid()));
 create policy convo_delete_owner on public.conversations for delete to authenticated using (owner_user_id=(select auth.uid()));
-
 create policy messages_select_owner on public.messages for select to authenticated using (exists(select 1 from public.conversations c where c.id=conversation_id and c.owner_user_id=(select auth.uid())));
 create policy messages_insert_owner on public.messages for insert to authenticated with check (exists(select 1 from public.conversations c where c.id=conversation_id and c.owner_user_id=(select auth.uid())));
 create policy messages_update_owner on public.messages for update to authenticated using (exists(select 1 from public.conversations c where c.id=conversation_id and c.owner_user_id=(select auth.uid()))) with check (exists(select 1 from public.conversations c where c.id=conversation_id and c.owner_user_id=(select auth.uid())));
 create policy messages_delete_owner on public.messages for delete to authenticated using (exists(select 1 from public.conversations c where c.id=conversation_id and c.owner_user_id=(select auth.uid())));
-
 create policy usage_select_self on public.usage_events for select to authenticated using (user_id=(select auth.uid()));
 create policy usage_insert_self on public.usage_events for insert to authenticated with check (user_id=(select auth.uid()));
-
 create policy portfolio_select_owner on public.portfolios for select to authenticated using (owner_user_id=(select auth.uid()));
 create policy portfolio_insert_owner on public.portfolios for insert to authenticated with check (owner_user_id=(select auth.uid()) and (select private.is_org_member(organization_id)));
 create policy portfolio_update_owner on public.portfolios for update to authenticated using (owner_user_id=(select auth.uid())) with check (owner_user_id=(select auth.uid()));
@@ -494,10 +479,10 @@ with permitted as (
     and (d.effective_until is null or d.effective_until >= current_date)
 ),
 semantic as (
-  select p.id, row_number() over(order by p.embedding <=> p_query_embedding) as rank
+  select p.id, row_number() over(order by p.embedding OPERATOR(extensions.<=>) p_query_embedding) as rank
   from permitted p
   where p.embedding is not null
-  order by p.embedding <=> p_query_embedding
+  order by p.embedding OPERATOR(extensions.<=>) p_query_embedding
   limit greatest(20, least(200, p_match_count*5))
 ),
 lexical as (
@@ -604,7 +589,6 @@ create policy documents_storage_update on storage.objects for update to authenti
 create policy documents_storage_delete on storage.objects for delete to authenticated using (bucket_id='documents' and (select private.user_storage_path_allowed(name)));
 
 -- ---------- Seed shared knowledge pack definitions ----------
--- These are pack definitions only. Curated source content is imported by the source pipeline and is not fabricated in seed data.
 insert into public.knowledge_bases(id,organization_id,owner_user_id,name,slug,description,kind,visibility)
 values
  ('10000000-0000-4000-8000-000000000001',null,null,'Study Foundations','study-foundations','Shared study/tutoring behavioral knowledge pack.','system','public'),
@@ -613,7 +597,6 @@ values
  ('10000000-0000-4000-8000-000000000004',null,null,'Health Information Foundations','health-general','General health information foundations; not a diagnosis or prescribing corpus.','system','public')
 on conflict (slug) do nothing;
 
--- Revoke broad grants and expose only what authenticated clients require; RLS is still enforced.
 grant select,insert,update,delete on public.profiles,public.organizations,public.organization_members,public.bots,
   public.knowledge_bases,public.bot_knowledge_bases,public.source_registry,public.documents,public.document_versions,
   public.chunks,public.ingestion_jobs,public.conversations,public.messages,public.usage_events,public.portfolios,
