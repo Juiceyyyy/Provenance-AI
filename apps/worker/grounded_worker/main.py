@@ -10,9 +10,9 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
+import httpx
 import psycopg
 from docling.document_converter import DocumentConverter
-from openai import OpenAI
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from supabase import Client, create_client
@@ -72,24 +72,50 @@ def claim_job(conn: psycopg.Connection[Any], worker_id: str) -> dict[str, Any] |
             """,
             (worker_id, row["id"]),
         )
-        conn.execute("update public.document_versions set status='processing', error_message=null where id=%s", (row["document_version_id"],))
+        conn.execute(
+            "update public.document_versions set status='processing', error_message=null where id=%s",
+            (row["document_version_id"],),
+        )
         conn.execute("update public.documents set status='processing' where id=%s", (row["document_id"],))
         return dict(row)
 
 
-def embed_chunks(client: OpenAI, model: str, dimensions: int, chunks: list[ParsedChunk]) -> list[list[float]]:
-    result: list[list[float]] = []
-    for start in range(0, len(chunks), 96):
-        batch = chunks[start : start + 96]
-        response = client.embeddings.create(
-            model=model,
-            input=[chunk.embedding_text for chunk in batch],
-            dimensions=dimensions,
-            encoding_format="float",
+def _gemini_embedding(client: httpx.Client, settings: Settings, text: str) -> list[float]:
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{settings.embedding_model}:embedContent"
+    )
+    payload = {
+        "content": {"parts": [{"text": text}]},
+        "output_dimensionality": settings.embedding_dimensions,
+    }
+
+    for attempt in range(5):
+        response = client.post(
+            url,
+            headers={"x-goog-api-key": settings.gemini_api_key, "content-type": "application/json"},
+            json=payload,
         )
-        ordered = sorted(response.data, key=lambda item: item.index)
-        result.extend([item.embedding for item in ordered])
-    return result
+        if response.status_code != 429:
+            response.raise_for_status()
+            body = response.json()
+            values = body.get("embedding", {}).get("values")
+            if not isinstance(values, list) or len(values) != settings.embedding_dimensions:
+                raise RuntimeError(
+                    f"Gemini returned invalid embedding dimensions: {len(values) if isinstance(values, list) else 0}"
+                )
+            return [float(value) for value in values]
+        if attempt == 4:
+            response.raise_for_status()
+        retry_after = response.headers.get("retry-after")
+        delay = float(retry_after) if retry_after and retry_after.replace(".", "", 1).isdigit() else 2**attempt
+        time.sleep(min(30.0, max(1.0, delay)))
+
+    raise RuntimeError("Gemini embedding request exhausted retries")
+
+
+def embed_chunks(client: httpx.Client, settings: Settings, chunks: list[ParsedChunk]) -> list[list[float]]:
+    return [_gemini_embedding(client, settings, chunk.embedding_text) for chunk in chunks]
 
 
 def vector_literal(values: list[float]) -> str:
@@ -100,7 +126,7 @@ def process_job(
     settings: Settings,
     conn: psycopg.Connection[Any],
     storage: Client,
-    ai: OpenAI,
+    ai: httpx.Client,
     converter: DocumentConverter,
     job: dict[str, Any],
 ) -> None:
@@ -129,7 +155,7 @@ def process_job(
         if not chunks:
             raise RuntimeError("Parser produced no indexable chunks")
 
-    embeddings = embed_chunks(ai, settings.embedding_model, settings.embedding_dimensions, chunks)
+    embeddings = embed_chunks(ai, settings, chunks)
     if len(embeddings) != len(chunks):
         raise RuntimeError("Embedding count mismatch")
 
@@ -177,26 +203,34 @@ def process_job(
 def fail_job(conn: psycopg.Connection[Any], job: dict[str, Any], error: Exception) -> None:
     message = str(error)[:4000]
     with conn.transaction():
-        row = conn.execute("select attempts,max_attempts from public.ingestion_jobs where id=%s", (job["id"],)).fetchone()
+        row = conn.execute(
+            "select attempts,max_attempts from public.ingestion_jobs where id=%s",
+            (job["id"],),
+        ).fetchone()
         terminal = row is None or row["attempts"] >= row["max_attempts"]
         next_status = "failed" if terminal else "queued"
         conn.execute(
             "update public.ingestion_jobs set status=%s,error_message=%s,locked_at=null,locked_by=null,completed_at=case when %s then now() else null end where id=%s",
             (next_status, message, terminal, job["id"]),
         )
-        conn.execute("update public.document_versions set status=%s,error_message=%s where id=%s", ("failed" if terminal else "queued", message, job["document_version_id"]),)
-        conn.execute("update public.documents set status=%s where id=%s", ("failed" if terminal else "queued", job["document_id"]),)
+        conn.execute(
+            "update public.document_versions set status=%s,error_message=%s where id=%s",
+            ("failed" if terminal else "queued", message, job["document_version_id"]),
+        )
+        conn.execute(
+            "update public.documents set status=%s where id=%s",
+            ("failed" if terminal else "queued", job["document_id"]),
+        )
     LOG.exception("Ingestion failed for %s: %s", job.get("title"), message)
 
 
 def run() -> None:
     settings = Settings.from_env()
-    ai = OpenAI(api_key=settings.openai_api_key)
     storage = create_client(settings.supabase_url, settings.supabase_service_role_key)
     converter = DocumentConverter()
-    LOG.info("Worker %s started", settings.worker_id)
+    LOG.info("Worker %s started%s", settings.worker_id, " in one-shot mode" if settings.one_shot else "")
 
-    with db(settings) as conn:
+    with httpx.Client(timeout=httpx.Timeout(60.0, connect=15.0)) as ai, db(settings) as conn:
         while not STOP:
             processed = 0
             for _ in range(settings.batch_size):
@@ -208,6 +242,8 @@ def run() -> None:
                 except Exception as exc:  # noqa: BLE001 - worker boundary must trap parser/provider failures
                     fail_job(conn, job, exc)
                 processed += 1
+            if settings.one_shot:
+                break
             if processed == 0:
                 time.sleep(settings.poll_seconds)
     LOG.info("Worker stopped")
