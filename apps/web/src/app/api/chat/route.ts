@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     if (!validated.success) return NextResponse.json({ error: "Invalid chat message structure" }, { status: 400 });
     const messages = validated.data;
 
-    await assertUsageAvailable(supabase, userId);
+    await assertUsageAvailable(supabase);
     const { data: bot, error: botError } = await supabase
       .from("bots")
       .select("id,name,bot_type,description,instructions,jurisdiction_country,jurisdiction_region,citations_required,web_enabled,organization_id")
