@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
-from hashlib import sha256
-import json
 import logging
-from pathlib import Path
 import signal
 import tempfile
 import time
-from typing import Any, Iterator
+from collections.abc import Iterator
+from contextlib import contextmanager
+from hashlib import sha256
+from pathlib import Path
+from typing import Any
 
+import psycopg
 from docling.document_converter import DocumentConverter
 from openai import OpenAI
-import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from supabase import Client, create_client
@@ -205,7 +205,7 @@ def run() -> None:
                     break
                 try:
                     process_job(settings, conn, storage, ai, converter, job)
-                except Exception as exc:  # worker boundary must trap parser/provider failures
+                except Exception as exc:  # noqa: BLE001 - worker boundary must trap parser/provider failures
                     fail_job(conn, job, exc)
                 processed += 1
             if processed == 0:
