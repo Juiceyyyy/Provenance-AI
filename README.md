@@ -38,8 +38,10 @@ The default deployment path is deliberately designed to avoid billable infrastru
 - Supabase Free for Postgres, Auth, pgvector and private Storage
 - Vercel Hobby for the Next.js web app
 - GitHub Actions standard runners on this public repository for batched ingestion and source refresh
-- Gemini API free tier for chat and 1536-dimensional embeddings
+- Cloudflare Workers AI Free for generation and multilingual BGE-M3 embeddings
 - ClamAV in a GitHub Actions service container for fail-closed malware scanning
+
+Cloudflare Workers AI's Free plan provides a daily no-charge allocation; when that allocation is exhausted, requests fail instead of automatically billing. Cloudflare also states that Workers AI Customer Content is not used to train AI models or improve Cloudflare or third-party services without explicit consent. Review the provider's current terms before production use.
 
 Paid AI providers are disabled by default. `ALLOW_BILLABLE_AI` must be explicitly set to `true` before the web app may use an AI Gateway or direct OpenAI fallback.
 
@@ -69,7 +71,7 @@ The free worker is intentionally batch-oriented rather than always-on. New uploa
 
 - Python + Docling structural document processing
 - Page, heading and table provenance retention
-- Gemini Embedding 2 at 1536 dimensions by default
+- Cloudflare-hosted BGE-M3 multilingual embeddings at 1024 dimensions
 - `FOR UPDATE SKIP LOCKED` job claiming
 - One-shot mode for scheduled GitHub Actions execution
 - Retry and stale-lock recovery
@@ -109,14 +111,14 @@ RAG orchestrator ───── optional web search
        └── metadata / jurisdiction filters
        │
        ▼
-Model + citations
+Cloudflare Workers AI + citations
 
 Uploads → private Supabase Storage → ingestion queue
                                       │
                                       ▼
                        scheduled GitHub Actions worker
                                       │
-                         Docling + ClamAV + Gemini
+                    Docling + ClamAV + Workers AI
                                       │
                                       ▼
                               chunks + embeddings
@@ -148,12 +150,14 @@ Create a fresh Supabase project and apply every SQL file in `supabase/migrations
 
 ### 2. Configure the free AI provider
 
-Create a Gemini API key and set `GEMINI_API_KEY`. The defaults are:
+Create a Workers AI API token and copy your Cloudflare Account ID. The defaults are:
 
 ```text
-GEMINI_MODEL=gemini-3.8-flash
-GEMINI_EMBEDDING_MODEL=gemini-embedding-2
-EMBEDDING_DIMENSIONS=1536
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_API_TOKEN=
+CLOUDFLARE_AI_MODEL=@cf/zai-org/glm-4.7-flash
+CLOUDFLARE_EMBEDDING_MODEL=@cf/baai/bge-m3
+EMBEDDING_DIMENSIONS=1024
 ALLOW_BILLABLE_AI=false
 ```
 
@@ -210,7 +214,7 @@ The zero-cost reference split is:
 - `apps/web` → Vercel Hobby
 - Supabase Free → Postgres / Auth / Storage / pgvector
 - `.github/workflows/free-worker.yml` → scheduled ingestion and source refresh
-- Gemini free tier → generation and embeddings
+- Cloudflare Workers AI Free → generation and embeddings
 
 No Render resource is required by the default deployment.
 
