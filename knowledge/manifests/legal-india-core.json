@@ -1,0 +1,76 @@
+{
+  "pack": {
+    "name": "India Legal Core",
+    "slug": "legal-india-core",
+    "description": "Core India legal authorities from official Government of India sources. This is a maintained foundation pack, not a claim of complete coverage of Indian law.",
+    "jurisdiction_country": "India",
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "Constitution of India",
+      "canonical_url": "https://www.indiacode.nic.in/bitstream/123456789/15240/1/constitution_of_india.pdf",
+      "publisher": "Legislative Department, Ministry of Law and Justice, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "Indian Contract Act, 1872",
+      "canonical_url": "https://www.indiacode.nic.in/bitstream/123456789/2187/2/A187209.pdf",
+      "publisher": "India Code, Legislative Department, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "Information Technology Act, 2000",
+      "canonical_url": "https://www.indiacode.nic.in/bitstream/123456789/13116/1/it_act_2000_updated.pdf",
+      "publisher": "India Code, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "Consumer Protection Act, 2019",
+      "canonical_url": "https://www.indiacode.nic.in/bitstream/123456789/15256/1/eng201935.pdf",
+      "publisher": "India Code, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "Bharatiya Nyaya Sanhita, 2023",
+      "canonical_url": "https://www.indiacode.nic.in/bitstream/123456789/20062/1/a202345.pdf",
+      "publisher": "India Code, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "Bharatiya Nagarik Suraksha Sanhita, 2023",
+      "canonical_url": "https://www.indiacode.nic.in/bitstream/123456789/21920/1/the_bharatiya_nagarik_suraksha_sanhita%2C_2023.pdf",
+      "publisher": "India Code, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "Bharatiya Sakshya Adhiniyam, 2023",
+      "canonical_url": "https://www.indiacode.nic.in/indiacode/bitstream/123456789/20063/1/aa202347.pdf",
+      "publisher": "India Code, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "Companies Act, 2013",
+      "canonical_url": "https://www.mca.gov.in/Ministry/pdf/CompaniesAct2013.pdf",
+      "publisher": "Ministry of Corporate Affairs, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    }
+  ]
+}
