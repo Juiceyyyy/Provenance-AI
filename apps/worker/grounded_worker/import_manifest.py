@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from argparse import ArgumentParser
 import json
+from argparse import ArgumentParser
 from pathlib import Path
 
 import psycopg
