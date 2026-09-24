@@ -3,40 +3,43 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "@/lib/env";
 import type { RetrievedChunk } from "./types";
 
-const EMBEDDING_DIMENSIONS = 1536;
+const EMBEDDING_DIMENSIONS = 1024;
 
-type GeminiEmbeddingResponse = {
-  embedding?: { values?: number[] };
+type CloudflareEmbeddingResponse = {
+  data?: Array<{ embedding?: number[] }>;
+  error?: { message?: string };
 };
 
 async function embedQuery(value: string): Promise<number[]> {
-  if (!env.GEMINI_API_KEY) {
-    throw new Error("Free-tier embeddings are not configured. Set GEMINI_API_KEY.");
+  if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN) {
+    throw new Error("Free-tier embeddings are not configured. Set Cloudflare Workers AI credentials.");
   }
 
-  const model = encodeURIComponent(env.GEMINI_EMBEDDING_MODEL);
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-goog-api-key": env.GEMINI_API_KEY,
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/ai/v1/embeddings`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: env.CLOUDFLARE_EMBEDDING_MODEL,
+        input: value.slice(0, 24_000),
+      }),
+      cache: "no-store",
     },
-    body: JSON.stringify({
-      content: { parts: [{ text: value.slice(0, 12_000) }] },
-      output_dimensionality: EMBEDDING_DIMENSIONS,
-    }),
-    cache: "no-store",
-  });
+  );
 
+  const body = (await response.json().catch(() => null)) as CloudflareEmbeddingResponse | null;
   if (!response.ok) {
-    const detail = (await response.text().catch(() => "")).slice(0, 500);
-    throw new Error(`Gemini embedding request failed (${response.status})${detail ? `: ${detail}` : ""}`);
+    const detail = body?.error?.message?.slice(0, 500);
+    throw new Error(`Cloudflare embedding request failed (${response.status})${detail ? `: ${detail}` : ""}`);
   }
 
-  const body = (await response.json()) as GeminiEmbeddingResponse;
-  const embedding = body.embedding?.values;
+  const embedding = body?.data?.[0]?.embedding;
   if (!Array.isArray(embedding) || embedding.length !== EMBEDDING_DIMENSIONS) {
-    throw new Error(`Gemini returned an invalid embedding dimension: ${embedding?.length ?? 0}`);
+    throw new Error(`Cloudflare returned an invalid embedding dimension: ${embedding?.length ?? 0}`);
   }
   return embedding;
 }
@@ -63,9 +66,17 @@ export function chunksToContext(chunks: RetrievedChunk[]) {
   return chunks
     .map((chunk, index) => {
       const sourceId = `S${index + 1}`;
-      const page = chunk.page_start ? `page ${chunk.page_start}${chunk.page_end && chunk.page_end !== chunk.page_start ? `-${chunk.page_end}` : ""}` : null;
+      const page = chunk.page_start
+        ? `page ${chunk.page_start}${chunk.page_end && chunk.page_end !== chunk.page_start ? `-${chunk.page_end}` : ""}`
+        : null;
       const heading = chunk.heading_path?.length ? chunk.heading_path.join(" > ") : null;
-      const meta = [chunk.document_title, page, heading, chunk.publisher, chunk.effective_from ? `effective ${chunk.effective_from}` : null]
+      const meta = [
+        chunk.document_title,
+        page,
+        heading,
+        chunk.publisher,
+        chunk.effective_from ? `effective ${chunk.effective_from}` : null,
+      ]
         .filter(Boolean)
         .join(" | ");
       return `[${sourceId}] ${meta}\nCitation URL: /app/sources/${chunk.chunk_id}\n${chunk.content}`;
