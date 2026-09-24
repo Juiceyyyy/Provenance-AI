@@ -25,9 +25,10 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      GEMINI_EMBEDDING_MODEL: gemini-embedding-2
-      EMBEDDING_DIMENSIONS: "1536"
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_EMBEDDING_MODEL: "@cf/baai/bge-m3"
+      EMBEDDING_DIMENSIONS: "1024"
       WORKER_BATCH_SIZE: "4"
       WORKER_ONESHOT: "true"
       MALWARE_SCAN_REQUIRED: "true"
@@ -40,11 +41,11 @@ jobs:
         id: config
         shell: bash
         run: |
-          if [[ -n "$DATABASE_URL" && -n "$SUPABASE_URL" && -n "$SUPABASE_SERVICE_ROLE_KEY" && -n "$GEMINI_API_KEY" ]]; then
+          if [[ -n "$DATABASE_URL" && -n "$SUPABASE_URL" && -n "$SUPABASE_SERVICE_ROLE_KEY" && -n "$CLOUDFLARE_ACCOUNT_ID" && -n "$CLOUDFLARE_API_TOKEN" ]]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "Worker secrets are not configured yet; skipping without a paid fallback."
+            echo "Worker secrets are not configured yet; skipping without any paid fallback."
           fi
 
       - uses: actions/checkout@v7
@@ -69,7 +70,7 @@ jobs:
         run: |
           python - <<'PY'
           import socket, time
-          for attempt in range(60):
+          for _ in range(60):
               try:
                   with socket.create_connection(("127.0.0.1", 3310), timeout=2):
                       print("ClamAV is ready")
@@ -80,7 +81,9 @@ jobs:
           PY
 
       - name: Refresh due authoritative sources
+        id: refresh
         if: steps.config.outputs.ready == 'true'
+        continue-on-error: true
         working-directory: apps/worker
         run: grounded-refresh-due
 
@@ -88,3 +91,9 @@ jobs:
         if: steps.config.outputs.ready == 'true'
         working-directory: apps/worker
         run: grounded-worker
+
+      - name: Report source refresh failures
+        if: steps.config.outputs.ready == 'true' && steps.refresh.outcome == 'failure'
+        run: |
+          echo "One or more authoritative source refreshes failed. Private queued-document ingestion still ran successfully."
+          exit 1
