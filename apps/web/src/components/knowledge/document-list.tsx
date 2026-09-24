@@ -30,7 +30,6 @@ export function DocumentList({ initialDocuments }: { initialDocuments: DocumentR
   const [busyId, setBusyId] = useState<string | null>(null);
   const hasPending = useMemo(() => documents.some((document) => document.status === "queued" || document.status === "processing"), [documents]);
 
-  useEffect(() => setDocuments(initialDocuments), [initialDocuments]);
   useEffect(() => {
     if (!hasPending) return;
     const timer = window.setInterval(async () => {
