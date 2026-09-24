@@ -13,6 +13,10 @@ create index if not exists usage_events_bot_idx on public.usage_events(bot_id);
 create index if not exists usage_events_org_idx on public.usage_events(organization_id);
 
 drop policy if exists sources_manage_admin on public.source_registry;
+drop policy if exists sources_insert_admin on public.source_registry;
+drop policy if exists sources_update_admin on public.source_registry;
+drop policy if exists sources_delete_admin on public.source_registry;
+
 create policy sources_insert_admin on public.source_registry for insert to authenticated
 with check (
   exists(
