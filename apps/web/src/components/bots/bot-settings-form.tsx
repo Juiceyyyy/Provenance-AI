@@ -81,7 +81,7 @@ export function BotSettingsForm({ bot }: { bot: EditableBot }) {
         <div className="flex items-center justify-between rounded-lg border p-4"><div><div className="text-sm font-medium">Allow live web search</div><div className="mt-1 text-xs text-muted-foreground">Users still choose whether to enable it on each turn.</div></div><Switch checked={webEnabled} onCheckedChange={setWebEnabled} /></div>
         <Button disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button>
       </Card>
-      <Card className="border-red-950/60 p-5"><h2 className="text-sm font-medium">Delete assistant</h2><p className="mt-2 text-xs leading-5 text-muted-foreground">Deletes conversation history and this assistant's private knowledge base. Shared curated packs are unaffected.</p><Button type="button" variant="danger" className="mt-4" onClick={remove} disabled={deleting}>{deleting ? "Deleting…" : "Delete assistant"}</Button></Card>
+      <Card className="border-red-950/60 p-5"><h2 className="text-sm font-medium">Delete assistant</h2><p className="mt-2 text-xs leading-5 text-muted-foreground">Deletes conversation history and this assistant&apos;s private knowledge base. Shared curated packs are unaffected.</p><Button type="button" variant="danger" className="mt-4" onClick={remove} disabled={deleting}>{deleting ? "Deleting…" : "Delete assistant"}</Button></Card>
     </form>
   );
 }
