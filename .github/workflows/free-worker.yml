@@ -69,6 +69,36 @@ jobs:
           python -m pip install --upgrade pip
           pip install . --extra-index-url https://download.pytorch.org/whl/cpu
 
+      - name: Verify Workers AI embedding access
+        if: steps.config.outputs.ready == 'true'
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request, urllib.error
+          account = os.environ["CLOUDFLARE_ACCOUNT_ID"]
+          token = os.environ["CLOUDFLARE_API_TOKEN"]
+          model = os.environ["CLOUDFLARE_EMBEDDING_MODEL"]
+          url = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1/embeddings"
+          body = json.dumps({"model": model, "input": "Provenance worker health check"}).encode()
+          req = urllib.request.Request(
+              url,
+              data=body,
+              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  payload = json.load(response)
+          except urllib.error.HTTPError as exc:
+              detail = exc.read().decode("utf-8", "replace")[:1000]
+              raise SystemExit(f"Workers AI health check failed ({exc.code}): {detail}")
+          rows = payload.get("data", [])
+          vector = rows[0].get("embedding") if rows and isinstance(rows[0], dict) else None
+          if not isinstance(vector, list) or len(vector) != 1024:
+              raise SystemExit(f"Workers AI returned unexpected embedding dimensions: {len(vector) if isinstance(vector, list) else 0}")
+          print("Workers AI embedding access verified (1024 dimensions)")
+          PY
+
       - name: Wait for ClamAV
         if: steps.config.outputs.ready == 'true'
         run: |
