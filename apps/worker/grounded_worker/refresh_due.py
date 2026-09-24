@@ -23,7 +23,7 @@ def main() -> None:
     for row in rows:
         try:
             refresh(str(row["id"]))
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - isolate each source refresh
             failures += 1
             print(f"Source {row['id']} failed: {exc}")
     if failures:
