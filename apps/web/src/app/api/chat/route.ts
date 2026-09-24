@@ -83,7 +83,12 @@ export async function POST(req: Request) {
       consumeSseStream: consumeStream,
       onFinish: async ({ messages: complete, isAborted }) => {
         await supabase.rpc("save_conversation_messages", { p_conversation_id: conversation.id, p_messages: complete });
-        const usage = await result.usage.catch(() => undefined);
+        let usage: Awaited<typeof result.usage> | undefined;
+        try {
+          usage = await result.usage;
+        } catch {
+          usage = undefined;
+        }
         await supabase.from("usage_events").insert({
           user_id: userId,
           organization_id: bot.organization_id,
