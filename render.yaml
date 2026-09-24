@@ -1,4 +1,12 @@
 services:
+  - type: pserv
+    name: provenance-clamav
+    runtime: image
+    region: singapore
+    plan: starter
+    image:
+      url: clamav/clamav:1.5.4
+
   - type: worker
     name: provenance-ingestion-worker
     runtime: docker
@@ -31,7 +39,14 @@ services:
       - key: WORKER_POLL_SECONDS
         value: "3"
       - key: MALWARE_SCAN_REQUIRED
-        value: "false"
+        value: "true"
+      - key: CLAMAV_HOST
+        fromService:
+          type: pserv
+          name: provenance-clamav
+          property: host
+      - key: CLAMAV_PORT
+        value: "3310"
       - key: MAX_SOURCE_BYTES
         value: "52428800"
 
@@ -64,6 +79,13 @@ services:
       - key: EMBEDDING_DIMENSIONS
         value: "1536"
       - key: MALWARE_SCAN_REQUIRED
-        value: "false"
+        value: "true"
+      - key: CLAMAV_HOST
+        fromService:
+          type: pserv
+          name: provenance-clamav
+          property: host
+      - key: CLAMAV_PORT
+        value: "3310"
       - key: MAX_SOURCE_BYTES
         value: "52428800"
