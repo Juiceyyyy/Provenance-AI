@@ -1,0 +1,68 @@
+{
+  "pack": {
+    "name": "India Tax & Corporate Reporting Core",
+    "slug": "accounting-india-core",
+    "description": "Official India tax, GST and corporate-reporting sources. This is a maintained core pack and intentionally does not claim exhaustive tax or accounting-standard coverage.",
+    "jurisdiction_country": "India",
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "Income-tax provisions and services",
+      "canonical_url": "https://www.incometaxindia.gov.in/Pages/tax-services.aspx",
+      "publisher": "Income Tax Department, Ministry of Finance, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 24
+    },
+    {
+      "title": "Income Tax Act 2025 official help and guidance",
+      "canonical_url": "https://www.incometax.gov.in/iec/foportal/help/all-topics/e-filing-services/income-tax-act-2025",
+      "publisher": "Income Tax Department, Ministry of Finance, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 24
+    },
+    {
+      "title": "GST Acts",
+      "canonical_url": "https://cbic-gst.gov.in/gst-acts.html",
+      "publisher": "Central Board of Indirect Taxes and Customs, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 24
+    },
+    {
+      "title": "GST Rules",
+      "canonical_url": "https://cbic-gst.gov.in/gst-rules.html",
+      "publisher": "Central Board of Indirect Taxes and Customs, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 24
+    },
+    {
+      "title": "Companies Act, 2013",
+      "canonical_url": "https://www.mca.gov.in/Ministry/pdf/CompaniesAct2013.pdf",
+      "publisher": "Ministry of Corporate Affairs, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "Indian Accounting Standard 1 - Presentation of Financial Statements",
+      "canonical_url": "https://www.mca.gov.in/bin/ebook/dms/getdocument?doc=MTk1MDQ3OTE0&docCategory=Accounting+Standards&type=open",
+      "publisher": "Ministry of Corporate Affairs, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "Indian Accounting Standard 101 - First-time Adoption of Indian Accounting Standards",
+      "canonical_url": "https://www.mca.gov.in/bin/ebook/dms/getdocument?doc=MTk0MDU5ODM5&docCategory=Accounting+Standards&type=open",
+      "publisher": "Ministry of Corporate Affairs, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    }
+  ]
+}
