@@ -3,13 +3,13 @@ import { cn } from "@/lib/utils";
 
 export function BrandMark({ className, priority = false }: { className?: string; priority?: boolean }) {
   return (
-    <span className={cn("relative inline-flex shrink-0 overflow-hidden rounded-[18px] bg-transparent", className)}>
+    <span className={cn("relative inline-flex size-10 shrink-0 overflow-hidden rounded-[14px] bg-transparent", className)}>
       <Image
         src="/provenance-mark.png"
         alt="Provenance logo"
         fill
         priority={priority}
-        sizes="(max-width: 768px) 40px, 56px"
+        sizes="(max-width: 768px) 44px, 48px"
         className="object-contain"
       />
     </span>
@@ -18,9 +18,9 @@ export function BrandMark({ className, priority = false }: { className?: string;
 
 export function BrandLockup({ className, markClassName, textClassName, priority = false }: { className?: string; markClassName?: string; textClassName?: string; priority?: boolean }) {
   return (
-    <span className={cn("inline-flex items-center gap-3", className)}>
-      <BrandMark className={cn("size-9", markClassName)} priority={priority} />
-      <span className={cn("text-sm font-semibold tracking-tight text-foreground", textClassName)}>Provenance</span>
+    <span className={cn("inline-flex items-center gap-2.5", className)}>
+      <BrandMark className={markClassName} priority={priority} />
+      <span className={cn("text-[19px] font-semibold leading-none tracking-[-0.035em] text-foreground", textClassName)}>Provenance</span>
     </span>
   );
 }
