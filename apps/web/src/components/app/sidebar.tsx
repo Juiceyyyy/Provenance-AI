@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bot, BookOpenText, Home, LogOut, Menu, MessageSquare, PieChart, Plus, Settings, X } from "lucide-react";
+import { Bot, ChevronDown, Home, LogOut, Menu, MessageSquare, Plus, Settings, X } from "lucide-react";
 import { useState } from "react";
 import { BrandLockup } from "@/components/app/brand";
 import { createClient } from "@/lib/supabase/client";
@@ -93,13 +93,13 @@ function NavigationContent({
           </NavLink>
         </nav>
 
-        <div className="mt-5">
-          <div className="flex items-center justify-between px-2.5 pb-1.5 text-[11px] font-medium text-[#7f8a9d]">
+        <details open className="group mt-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg px-2.5 py-2 text-[11px] font-medium text-[#7f8a9d] transition hover:bg-white/[.035] hover:text-[#aeb9c8]">
             <span>Assistants</span>
-            <Link href="/app/bots" onClick={onNavigate} className="hover:text-foreground">View all</Link>
-          </div>
-          <div className="space-y-0.5">
-            {assistants.length ? assistants.slice(0, 8).map((assistant) => (
+            <ChevronDown className="size-3.5 transition group-open:rotate-180" />
+          </summary>
+          <div className="mt-1 space-y-0.5">
+            {assistants.length ? assistants.map((assistant) => (
               <NavLink key={assistant.id} href={`/app/bots/${assistant.id}`} active={pathname.startsWith(`/app/bots/${assistant.id}`)} onNavigate={onNavigate}>
                 <span className="grid size-6 shrink-0 place-items-center rounded-md bg-[#14233a] text-[#9fc1ff]">
                   <Bot className="size-3.5" />
@@ -110,12 +110,12 @@ function NavigationContent({
               <p className="px-2.5 py-2 text-xs leading-5 text-[#737f91]">Create an assistant to start a grounded conversation.</p>
             )}
           </div>
-        </div>
+        </details>
 
         <div className="mt-5">
-          <div className="px-2.5 pb-1.5 text-[11px] font-medium text-[#7f8a9d]">Recent conversations</div>
+          <div className="px-2.5 pb-1.5 text-[11px] font-medium text-[#7f8a9d]">Conversations</div>
           <div className="space-y-0.5">
-            {conversations.length ? conversations.slice(0, 18).map((conversation) => (
+            {conversations.length ? conversations.slice(0, 24).map((conversation) => (
               <NavLink key={conversation.id} href={`/app/bots/${conversation.bot_id}?conversation=${conversation.id}`} onNavigate={onNavigate}>
                 <MessageSquare className="size-3.5 shrink-0 text-[#7f8a9d]" />
                 <span className="min-w-0 flex-1">
@@ -131,22 +131,14 @@ function NavigationContent({
       </div>
 
       <div className="shrink-0 border-t border-white/[.07] p-2.5">
-        <div className="grid grid-cols-3 gap-1">
-          <Link href="/app/knowledge" onClick={onNavigate} className="flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10px] text-[#8f9bad] hover:bg-white/[.055] hover:text-foreground">
-            <BookOpenText className="size-4" />Knowledge
-          </Link>
-          <Link href="/app/portfolio" onClick={onNavigate} className="flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10px] text-[#8f9bad] hover:bg-white/[.055] hover:text-foreground">
-            <PieChart className="size-4" />Portfolio
-          </Link>
-          <Link href="/app/settings" onClick={onNavigate} className="flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10px] text-[#8f9bad] hover:bg-white/[.055] hover:text-foreground">
-            <Settings className="size-4" />Settings
-          </Link>
-        </div>
-        <div className="mt-1.5 flex items-center gap-2 rounded-lg px-2 py-2">
+        <div className="flex items-center gap-2 rounded-xl px-2 py-2">
           <div className="grid size-8 shrink-0 place-items-center rounded-full bg-[#162238] text-xs font-semibold text-[#d8e6ff]">
             {(email?.[0] || "P").toUpperCase()}
           </div>
           <div className="min-w-0 flex-1 truncate text-[11px] text-[#8e9aab]">{email || "Signed in"}</div>
+          <Link href="/app/settings" onClick={onNavigate} aria-label="Settings" className="grid size-8 shrink-0 place-items-center rounded-lg text-[#8e9aab] hover:bg-white/[.055] hover:text-foreground">
+            <Settings className="size-4" />
+          </Link>
           <button onClick={signOut} disabled={signingOut} aria-label="Sign out" className="grid size-8 shrink-0 place-items-center rounded-lg text-[#8e9aab] hover:bg-white/[.055] hover:text-foreground disabled:opacity-50">
             <LogOut className="size-4" />
           </button>
@@ -161,7 +153,7 @@ export function Sidebar({ assistants, conversations, email }: { assistants: Assi
 
   return (
     <>
-      <aside className="hidden h-dvh w-[268px] shrink-0 border-r border-white/[.07] lg:block">
+      <aside className="hidden h-dvh w-[260px] shrink-0 border-r border-white/[.07] lg:block">
         <NavigationContent assistants={assistants} conversations={conversations} email={email} />
       </aside>
 
