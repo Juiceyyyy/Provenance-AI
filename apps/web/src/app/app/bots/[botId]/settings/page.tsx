@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { BotSettingsForm } from "@/components/bots/bot-settings-form";
+import { PageHeader, PageShell } from "@/components/app/page-shell";
 
 export default async function BotSettingsPage({ params }: { params: Promise<{ botId: string }> }) {
   const { botId } = await params;
@@ -14,5 +15,11 @@ export default async function BotSettingsPage({ params }: { params: Promise<{ bo
     .maybeSingle();
   if (!bot) notFound();
 
-  return <div className="mx-auto max-w-3xl"><Link href={`/app/bots/${bot.id}`} className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"><ArrowLeft className="size-3.5" />Back to assistant</Link><div className="mb-7 mt-5"><p className="text-xs uppercase tracking-[.18em] text-muted-foreground">Assistant settings</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">{bot.name}</h1></div><BotSettingsForm bot={bot} /></div>;
+  return (
+    <PageShell className="max-w-3xl">
+      <Link href={`/app/bots/${bot.id}`} className="mb-5 inline-flex items-center gap-2 text-xs text-[#8792a3] hover:text-foreground"><ArrowLeft className="size-3.5" />Back to chat</Link>
+      <PageHeader eyebrow="Assistant settings" title={bot.name} description="Adjust this assistant’s scope, instructions, jurisdiction and access to live web search." />
+      <div className="mt-6"><BotSettingsForm bot={bot} /></div>
+    </PageShell>
+  );
 }
