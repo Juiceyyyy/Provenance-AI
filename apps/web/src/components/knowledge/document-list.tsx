@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { formatBytes } from "@/lib/utils";
 
 export type DocumentRow = {
@@ -73,13 +72,36 @@ export function DocumentList({ initialDocuments }: { initialDocuments: DocumentR
     }
   }
 
-  if (!documents.length) return <Card className="p-5 text-sm text-muted-foreground">No documents uploaded yet.</Card>;
-  return <div className="space-y-2">{documents.map((document) => {
-    const version = latestVersion(document);
-    const kb = Array.isArray(document.knowledge_bases) ? document.knowledge_bases[0] : document.knowledge_bases;
-    return <Card key={document.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{document.title}</div><div className="mt-1 text-xs text-muted-foreground">{formatBytes(Number(document.byte_size || 0))} · {document.mime_type || "unknown"}{kb?.name ? ` · ${kb.name}` : ""}</div>{document.status === "failed" && version?.error_message ? <div className="mt-2 line-clamp-2 text-xs text-red-300">{version.error_message}</div> : null}</div>
-      <div className="flex items-center gap-2"><Badge className={document.status === "ready" ? "border-emerald-900/60 bg-emerald-950/30 text-emerald-300" : document.status === "failed" ? "border-red-900/60 bg-red-950/30 text-red-300" : ""}>{document.status}</Badge>{document.status === "failed" ? <Button size="sm" variant="secondary" disabled={busyId === document.id} onClick={() => retry(document.id)}><RefreshCw className="size-3.5" />Retry</Button> : null}<Button size="icon" variant="ghost" aria-label={`Delete ${document.title}`} disabled={busyId === document.id} onClick={() => remove(document.id, document.title)}><Trash2 className="size-4" /></Button></div>
-    </Card>;
-  })}</div>;
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between px-1">
+        <div><h2 className="text-sm font-medium text-[#e2e8f1]">Documents</h2><p className="mt-1 text-xs text-[#818d9e]">Processing status and attached knowledge base.</p></div>
+        <span className="text-[11px] text-[#697587]">{documents.length} total</span>
+      </div>
+      {!documents.length ? (
+        <div className="rounded-xl border border-dashed border-white/[.08] px-5 py-8 text-center text-sm text-[#7f8b9c]">No documents uploaded yet.</div>
+      ) : (
+        <div className="divide-y divide-white/[.06] overflow-hidden rounded-xl border border-white/[.07] bg-[#0a0e14]">
+          {documents.map((document) => {
+            const version = latestVersion(document);
+            const kb = Array.isArray(document.knowledge_bases) ? document.knowledge_bases[0] : document.knowledge_bases;
+            return (
+              <div key={document.id} className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-[#e2e8f1]">{document.title}</div>
+                  <div className="mt-1 text-xs text-[#788496]">{formatBytes(Number(document.byte_size || 0))} · {document.mime_type || "unknown"}{kb?.name ? ` · ${kb.name}` : ""}</div>
+                  {document.status === "failed" && version?.error_message ? <div className="mt-2 line-clamp-2 text-xs text-red-300">{version.error_message}</div> : null}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className={document.status === "ready" ? "border-emerald-900/60 bg-emerald-950/30 text-emerald-300" : document.status === "failed" ? "border-red-900/60 bg-red-950/30 text-red-300" : ""}>{document.status}</Badge>
+                  {document.status === "failed" ? <Button size="sm" variant="secondary" disabled={busyId === document.id} onClick={() => retry(document.id)}><RefreshCw className="size-3.5" />Retry</Button> : null}
+                  <Button size="icon" variant="ghost" aria-label={`Delete ${document.title}`} disabled={busyId === document.id} onClick={() => remove(document.id, document.title)}><Trash2 className="size-4" /></Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
