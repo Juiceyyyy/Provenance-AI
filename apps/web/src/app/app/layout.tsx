@@ -8,8 +8,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     supabase
       .from("bots")
       .select("id,name,bot_type")
-      .order("updated_at", { ascending: false })
-      .limit(20),
+      .order("name", { ascending: true })
+      .limit(50),
     supabase
       .from("conversations")
       .select("id,title,updated_at,bot_id")
@@ -18,7 +18,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .limit(30),
   ]);
 
-  const assistantList = assistants ?? [];
+  const assistantList = [...(assistants ?? [])].sort((a, b) => {
+    const aCustom = a.bot_type === "custom";
+    const bCustom = b.bot_type === "custom";
+    if (aCustom !== bCustom) return aCustom ? 1 : -1;
+    return a.name.localeCompare(b.name);
+  });
   const names = new Map(assistantList.map((assistant) => [assistant.id, assistant.name]));
   const conversations = (conversationRows ?? []).map((conversation) => ({
     id: conversation.id,
@@ -35,7 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         email={typeof claims.email === "string" ? claims.email : undefined}
       />
       <main className="min-w-0 flex-1">
-        <div className="mx-auto w-full max-w-[1440px] px-3 py-3 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+        <div className="mx-auto w-full max-w-[1480px] px-3 py-3 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
           {children}
         </div>
       </main>
