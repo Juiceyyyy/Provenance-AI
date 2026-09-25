@@ -6,6 +6,7 @@ import { Bot, ChevronDown, Home, LogOut, Menu, MessageSquare, Plus, Settings, X 
 import { useState } from "react";
 import { BrandLockup } from "@/components/app/brand";
 import { createClient } from "@/lib/supabase/client";
+import { PRESET_LIST } from "@/lib/bots/presets";
 import { cn } from "@/lib/utils";
 
 export type AssistantNavItem = {
@@ -52,6 +53,10 @@ function NavigationContent({
   const pathname = usePathname();
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
+  const assistantsByType = new Map<string, AssistantNavItem>();
+  for (const assistant of assistants) {
+    if (!assistantsByType.has(assistant.bot_type)) assistantsByType.set(assistant.bot_type, assistant);
+  }
 
   async function signOut() {
     setSigningOut(true);
@@ -99,16 +104,20 @@ function NavigationContent({
             <ChevronDown className="size-3.5 transition group-open:rotate-180" />
           </summary>
           <div className="mt-1 space-y-0.5">
-            {assistants.length ? assistants.map((assistant) => (
-              <NavLink key={assistant.id} href={`/app/bots/${assistant.id}`} active={pathname.startsWith(`/app/bots/${assistant.id}`)} onNavigate={onNavigate}>
-                <span className="grid size-6 shrink-0 place-items-center rounded-md bg-[#14233a] text-[#9fc1ff]">
-                  <Bot className="size-3.5" />
-                </span>
-                <span className="min-w-0 truncate">{assistant.name}</span>
-              </NavLink>
-            )) : (
-              <p className="px-2.5 py-2 text-xs leading-5 text-[#737f91]">Create an assistant to start a grounded conversation.</p>
-            )}
+            {PRESET_LIST.map((preset) => {
+              const existing = assistantsByType.get(preset.key);
+              const href = existing ? `/app/bots/${existing.id}` : `/app/bots/new?preset=${preset.key}`;
+              const active = Boolean(existing && pathname.startsWith(`/app/bots/${existing.id}`));
+              return (
+                <NavLink key={preset.key} href={href} active={active} onNavigate={onNavigate}>
+                  <span className="grid size-6 shrink-0 place-items-center rounded-md bg-[#14233a] text-[#9fc1ff]">
+                    <Bot className="size-3.5" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{preset.name}</span>
+                  {!existing ? <Plus className="size-3 shrink-0 text-[#657185]" /> : null}
+                </NavLink>
+              );
+            })}
           </div>
         </details>
 
