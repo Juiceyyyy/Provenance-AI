@@ -1,0 +1,54 @@
+{
+  "pack": {
+    "name": "India Health Core",
+    "slug": "health-india-core",
+    "description": "India-specific public-health and treatment-guideline sources from Government of India and WHO India. This is a maintained reference foundation, not a complete clinical guideline library.",
+    "kind": "jurisdiction",
+    "bot_types": ["health"],
+    "jurisdiction_country": "India",
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "WHO India Health Topics",
+      "canonical_url": "https://www.who.int/india/health-topics/",
+      "publisher": "World Health Organization India",
+      "authority_level": "official",
+      "license_type": "official-public-source-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "Standard Treatment Guidelines",
+      "canonical_url": "https://clinicalestablishments.mohfw.gov.in/en/standard-treatment-guidelines",
+      "publisher": "Directorate General of Health Services, Ministry of Health and Family Welfare, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "National Health Mission Guidelines",
+      "canonical_url": "https://nhm.gov.in/inFocus/index1.php?lang=1&level=1&lid=136&sublinkid=197",
+      "publisher": "National Health Mission, Ministry of Health and Family Welfare, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "National Health Mission Resource Documents",
+      "canonical_url": "https://nhm.gov.in/index1.php?lang=1&level=4&lid=371&sublinkid=344",
+      "publisher": "National Health Mission, Ministry of Health and Family Welfare, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "Ayushman Arogya Mandir Documents",
+      "canonical_url": "https://aam.mohfw.gov.in/document",
+      "publisher": "Ministry of Health and Family Welfare, Government of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 168
+    }
+  ]
+}

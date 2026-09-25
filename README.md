@@ -17,19 +17,20 @@
 
 ## What is Provenance?
 
-Provenance is an open-source knowledge platform for building specialized AI assistants over private documents, curated knowledge packs, and optionally the live web. Its core principle is simple: important answers should be inspectable back to their sources.
+Provenance is an open-source knowledge platform for specialized AI assistants over private documents, curated knowledge packs, and optionally the live web. Its core principle is simple: important answers should be inspectable back to their sources.
 
-The project includes templates for:
+Every workspace receives six ready-to-use built-in assistants:
 
-- Legal research
-- Tax and accounting
-- Health information
-- Study and revision
-- Portfolio management (allocation, exposure and diversification only; no price forecasts, options calls or market timing)
-- General document analysis
-- Fully custom assistants
+- Document Analyst
+- Health Information Assistant
+- Legal Research Assistant
+- Portfolio Manager Assistant (allocation, exposure and diversification only; no price forecasts, options calls or market timing)
+- Study Assistant
+- Tax & Accounting Assistant
 
-Users can create assistants, attach private documents, select jurisdiction defaults, enable web search per assistant or per turn, and inspect the exact retrieved source chunks behind citations.
+The built-ins are preconfigured but not locked down: users can rename them, add instructions, change jurisdiction/location settings and control web access. Provenance keeps the underlying specialist behavior and safety policy as the default layer. **Custom Assistant** is the only assistant type that requires creation/configuration before first use.
+
+Each assistant has a private upload knowledge base. Curated public packs are stored once and linked to applicable assistants instead of being duplicated per user. Location-aware assistants can attach maintained jurisdiction packs from the user's saved setting or an initial coarse deployment-region hint; users can always override that location in assistant settings.
 
 ## Zero-cost reference deployment
 
@@ -54,8 +55,8 @@ The free worker is intentionally batch-oriented rather than always-on. New uploa
 - Next.js App Router + TypeScript + Tailwind
 - Supabase SSR authentication and session refresh
 - RLS-protected multi-tenant schema
-- Bot templates plus custom instructions
-- Coarse IP-derived jurisdiction suggestion with editable confirmation
+- Six auto-provisioned, editable built-in assistants plus user-created Custom assistants
+- Coarse location-derived jurisdiction initialization with saved/user-edited settings taking precedence
 - Private signed document uploads with live status, retry and deletion
 - Streaming AI chat with markdown rendering
 - Hybrid pgvector + PostgreSQL FTS retrieval using Reciprocal Rank Fusion
@@ -78,7 +79,8 @@ The free worker is intentionally batch-oriented rather than always-on. New uploa
 - SHA-256 content hashing and immutable document versions
 - Curated-source refresh with redirect-aware SSRF controls and bounded downloads
 - Fail-closed ClamAV support
-- Jurisdiction-pack manifest importer
+- Shared curated and jurisdiction-pack manifest importer
+- Scheduled manifest registration so known packs remain available and refreshable
 
 ### Portfolio Manager
 
@@ -124,7 +126,7 @@ Uploads → private Supabase Storage → ingestion queue
                               chunks + embeddings
 ```
 
-A bot is configuration, not a separate service: instructions + attached knowledge bases + tools + jurisdiction + retrieval/model policy. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+A bot is configuration, not a separate service: preset behavior + user instructions + attached knowledge bases + tools + jurisdiction + retrieval/model policy. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Repository layout
 
@@ -146,7 +148,7 @@ A bot is configuration, not a separate service: instructions + attached knowledg
 
 ### 1. Create a Supabase project
 
-Create a fresh Supabase project and apply every SQL file in `supabase/migrations` in lexical order. Do not reuse an unrelated production database.
+Create a fresh Supabase project and apply every SQL file in `supabase/migrations` in lexical order. Do not reuse an unrelated production database. The migrations provision the six built-in assistants for each workspace automatically.
 
 ### 2. Configure the free AI provider
 
@@ -181,21 +183,25 @@ pip install . --extra-index-url https://download.pytorch.org/whl/cpu
 grounded-worker
 ```
 
-For the hosted zero-cost path, configure the repository secrets documented in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md); `.github/workflows/free-worker.yml` then refreshes due sources and processes queued documents every 15 minutes.
+For the hosted zero-cost path, configure the repository secrets documented in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md); `.github/workflows/free-worker.yml` then registers known manifests, refreshes due sources and processes queued documents every 15 minutes.
 
 ### 5. Smoke test
 
 1. Create and confirm an account.
-2. Create a Document Analyst.
+2. Open the already-provisioned Document Analyst.
 3. Upload a PDF and wait for status `ready`.
 4. Ask a question that requires the PDF.
 5. Open a citation and verify its page/section text.
-6. Create a second test user and verify tenant isolation.
-7. Import a portfolio CSV and create a Portfolio Manager assistant.
+6. Open Legal / Tax & Accounting and verify the configured jurisdiction in assistant settings.
+7. Create a second test user and verify tenant isolation.
+8. Import a portfolio CSV and use the already-provisioned Portfolio Manager assistant.
+9. Create a Custom Assistant and verify it remains isolated from the built-ins.
 
 ## Professional knowledge packs
 
-The repository contains maintained pack definitions and source registries without claiming exhaustive legal, tax or clinical coverage. The India starter packs register official Government of India sources and are refreshed/versioned by the source pipeline.
+The repository contains maintained pack definitions and source registries without claiming exhaustive legal, tax or clinical coverage. India legal/tax starter packs register official Government of India sources. The health baseline includes a global WHO pack plus an India-specific public-health/guideline pack. Registered packs are refreshed and versioned by the source pipeline.
+
+Jurisdiction packs are intentionally curated and cached rather than blindly mirroring every law, tax page and clinical document worldwide. Operators can add country/region manifests from authoritative sources; once registered, a pack is retained/versioned and automatically attached to matching location-aware assistants. This avoids silently serving stale or unlicensed material while remaining compatible with the free reference deployment.
 
 Production operators remain responsible for source licensing/redistribution review, freshness, domain-specific evaluation and professional-assistant disclosures.
 
@@ -213,17 +219,7 @@ The zero-cost reference split is:
 
 - `apps/web` → Vercel Hobby
 - Supabase Free → Postgres / Auth / Storage / pgvector
-- `.github/workflows/free-worker.yml` → scheduled ingestion and source refresh
+- `.github/workflows/free-worker.yml` → scheduled ingestion, manifest registration and source refresh
 - Cloudflare Workers AI Free → generation and embeddings
 
 No Render resource is required by the default deployment.
-
-See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
-
-## Contributing
-
-Contributions are welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request, and follow the [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
-
-## License
-
-Provenance AI is released under the [MIT License](LICENSE).
