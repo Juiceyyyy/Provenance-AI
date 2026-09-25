@@ -44,5 +44,16 @@ export default async function BotChatPage({ params, searchParams }: { params: Pr
   const initialMessages: UIMessage[] = (stored ?? []).map((message) => ({ id: message.id, role: message.role as UIMessage["role"], parts: message.parts as UIMessage["parts"] }));
   const preset = BOT_PRESETS[bot.bot_type as BotPresetKey] ?? BOT_PRESETS.general;
 
-  return <ChatShell key={conversation.id} bot={bot} conversationId={conversation.id} initialMessages={initialMessages} starterPrompts={preset.starterPrompts} />;
+  return (
+    <ChatShell
+      key={conversation.id}
+      bot={bot}
+      conversationId={conversation.id}
+      initialMessages={initialMessages}
+      starterPrompts={preset.starterPrompts}
+      welcomeTitle={preset.welcomeTitle}
+      welcomeBody={preset.welcomeBody}
+      placeholder={preset.placeholder}
+    />
+  );
 }
