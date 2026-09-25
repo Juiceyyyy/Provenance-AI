@@ -86,7 +86,7 @@ function NavigationContent({
           className="flex h-10 items-center gap-2.5 rounded-lg border border-[#2d3d56] bg-[#111722] px-3 text-[13px] font-medium text-[#e8eef8] hover:border-[#42679f] hover:bg-[#141c29]"
         >
           <Plus className="size-4 text-[#8bb7ff]" />
-          New assistant
+          New custom assistant
         </Link>
       </div>
 
@@ -106,7 +106,8 @@ function NavigationContent({
           <div className="mt-1 space-y-0.5">
             {ASSISTANT_CATALOG.map((preset) => {
               const existing = assistantsByType.get(preset.key);
-              const href = existing ? `/app/bots/${existing.id}` : `/app/bots/new?preset=${preset.key}`;
+              const isCustom = preset.key === "custom";
+              const href = existing ? `/app/bots/${existing.id}` : isCustom ? "/app/bots/new" : "/app";
               const active = Boolean(existing && pathname.startsWith(`/app/bots/${existing.id}`));
               return (
                 <NavLink key={preset.key} href={href} active={active} onNavigate={onNavigate}>
@@ -114,7 +115,7 @@ function NavigationContent({
                     <Bot className="size-3.5" />
                   </span>
                   <span className="min-w-0 flex-1 truncate">{preset.name}</span>
-                  {!existing ? <Plus className="size-3 shrink-0 text-[#657185]" /> : null}
+                  {isCustom && !existing ? <Plus className="size-3 shrink-0 text-[#657185]" /> : null}
                 </NavLink>
               );
             })}
@@ -173,7 +174,7 @@ export function Sidebar({ assistants, conversations, email }: { assistants: Assi
         <Link href="/app" aria-label="Provenance home">
           <BrandLockup markClassName="size-9" textClassName="text-[18px]" />
         </Link>
-        <Link href="/app/bots/new" aria-label="New assistant" className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.06] hover:text-foreground">
+        <Link href="/app/bots/new" aria-label="New custom assistant" className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.06] hover:text-foreground">
           <Plus className="size-5" />
         </Link>
       </header>
