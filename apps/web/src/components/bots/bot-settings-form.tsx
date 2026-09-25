@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -70,18 +69,22 @@ export function BotSettingsForm({ bot }: { bot: EditableBot }) {
   const requiresJurisdiction = bot.bot_type === "legal" || bot.bot_type === "accounting";
   return (
     <form onSubmit={save} className="space-y-4">
-      <Card className="space-y-5 p-6">
+      <section className="space-y-5 rounded-2xl border border-white/[.075] bg-[#0d1118] p-5 sm:p-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-xs text-muted-foreground">Name<Input className="mt-2" required minLength={2} maxLength={80} value={name} onChange={(e) => setName(e.target.value)} /></label>
-          <label className="text-xs text-muted-foreground">Type<Input className="mt-2" value={bot.bot_type} disabled /></label>
+          <label className="text-xs text-[#8d98a8]">Name<Input className="mt-2" required minLength={2} maxLength={80} value={name} onChange={(event) => setName(event.target.value)} /></label>
+          <label className="text-xs text-[#8d98a8]">Type<Input className="mt-2" value={bot.bot_type} disabled /></label>
         </div>
-        <label className="block text-xs text-muted-foreground">Description<Textarea className="mt-2" maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} /></label>
-        <label className="block text-xs text-muted-foreground">Custom instructions<Textarea className="mt-2 min-h-36" maxLength={8000} value={instructions} onChange={(e) => setInstructions(e.target.value)} /><span className="mt-1.5 block text-[11px] leading-5 text-muted-foreground">These are behavior preferences only. They cannot override tenant isolation, tool permissions, source access or professional safety rules.</span></label>
-        {requiresJurisdiction ? <div className="grid gap-4 sm:grid-cols-2"><label className="text-xs text-muted-foreground">Country / jurisdiction<Input className="mt-2" required value={country} onChange={(e) => setCountry(e.target.value)} /></label><label className="text-xs text-muted-foreground">State / region<Input className="mt-2" value={region} onChange={(e) => setRegion(e.target.value)} /></label></div> : null}
-        <div className="flex items-center justify-between rounded-lg border p-4"><div><div className="text-sm font-medium">Allow live web search</div><div className="mt-1 text-xs text-muted-foreground">Users still choose whether to enable it on each turn.</div></div><Switch checked={webEnabled} onCheckedChange={setWebEnabled} /></div>
+        <label className="block text-xs text-[#8d98a8]">Description<Textarea className="mt-2" maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+        <label className="block text-xs text-[#8d98a8]">Custom instructions<Textarea className="mt-2 min-h-36" maxLength={8000} value={instructions} onChange={(event) => setInstructions(event.target.value)} /><span className="mt-1.5 block text-[11px] leading-5 text-[#707c8e]">Behavior preferences cannot override tenant isolation, tool permissions, source access or professional safety rules.</span></label>
+        {requiresJurisdiction ? <div className="grid gap-4 sm:grid-cols-2"><label className="text-xs text-[#8d98a8]">Country / jurisdiction<Input className="mt-2" required value={country} onChange={(event) => setCountry(event.target.value)} /></label><label className="text-xs text-[#8d98a8]">State / region<Input className="mt-2" value={region} onChange={(event) => setRegion(event.target.value)} /></label></div> : null}
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-white/[.07] bg-white/[.02] p-4"><div><div className="text-sm font-medium text-[#e1e7ef]">Allow live web search</div><div className="mt-1 text-xs text-[#7e899a]">Users still choose whether to enable it on each turn.</div></div><Switch checked={webEnabled} onCheckedChange={setWebEnabled} /></div>
         <Button disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button>
-      </Card>
-      <Card className="border-red-950/60 p-5"><h2 className="text-sm font-medium">Delete assistant</h2><p className="mt-2 text-xs leading-5 text-muted-foreground">Deletes conversation history and this assistant&apos;s private knowledge base. Shared curated packs are unaffected.</p><Button type="button" variant="danger" className="mt-4" onClick={remove} disabled={deleting}>{deleting ? "Deleting…" : "Delete assistant"}</Button></Card>
+      </section>
+      <section className="rounded-2xl border border-red-950/60 bg-[#120d10] p-5">
+        <h2 className="text-sm font-medium text-[#efe7e9]">Delete assistant</h2>
+        <p className="mt-2 text-xs leading-5 text-[#8f8085]">Deletes conversation history and this assistant&apos;s private knowledge base. Shared curated packs are unaffected.</p>
+        <Button type="button" variant="danger" className="mt-4" onClick={remove} disabled={deleting}>{deleting ? "Deleting…" : "Delete assistant"}</Button>
+      </section>
     </form>
   );
 }
