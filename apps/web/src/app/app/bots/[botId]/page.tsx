@@ -3,7 +3,6 @@ import type { UIMessage } from "ai";
 import { requireUser } from "@/lib/auth";
 import { BOT_PRESETS, type BotPresetKey } from "@/lib/bots/presets";
 import { ChatShell } from "@/components/chat/chat-shell";
-import { ConversationSidebar } from "@/components/conversations/conversation-sidebar";
 
 export default async function BotChatPage({ params, searchParams }: { params: Promise<{ botId: string }>; searchParams: Promise<{ conversation?: string }> }) {
   const { botId } = await params;
@@ -45,5 +44,5 @@ export default async function BotChatPage({ params, searchParams }: { params: Pr
   const initialMessages: UIMessage[] = (stored ?? []).map((message) => ({ id: message.id, role: message.role as UIMessage["role"], parts: message.parts as UIMessage["parts"] }));
   const preset = BOT_PRESETS[bot.bot_type as BotPresetKey] ?? BOT_PRESETS.general;
 
-  return <div className="flex gap-4"><ConversationSidebar botId={bot.id} activeId={conversation.id} conversations={conversations} /><div className="min-w-0 flex-1"><ChatShell key={conversation.id} bot={bot} conversationId={conversation.id} initialMessages={initialMessages} starterPrompts={preset.starterPrompts} /></div></div>;
+  return <ChatShell key={conversation.id} bot={bot} conversationId={conversation.id} initialMessages={initialMessages} starterPrompts={preset.starterPrompts} />;
 }

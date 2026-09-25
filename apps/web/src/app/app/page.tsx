@@ -1,9 +1,76 @@
 import Link from "next/link";
-import { ArrowRight, Bot, Database, MessageSquareText } from "lucide-react";
+import { ArrowUpRight, Bot, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { PRESET_LIST } from "@/lib/bots/presets";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
-export default async function Dashboard(){const {supabase}=await requireUser();const [{data:bots},{count:docs},{count:conversations}]=await Promise.all([supabase.from("bots").select("id,name,description,bot_type,updated_at").order("updated_at",{ascending:false}).limit(5),supabase.from("documents").select("id",{count:"exact",head:true}),supabase.from("conversations").select("id",{count:"exact",head:true})]);return <div><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs uppercase tracking-[.18em] text-muted-foreground">Workspace</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">Your knowledge, organized.</h1><p className="mt-2 text-sm text-muted-foreground">Create assistants that answer from evidence you can inspect.</p></div><Link href="/app/bots/new"><Button>New assistant</Button></Link></div><div className="mt-8 grid gap-3 sm:grid-cols-3"><Card className="p-4"><Bot className="size-4 text-muted-foreground"/><div className="mt-4 text-2xl font-semibold">{bots?.length??0}</div><div className="text-xs text-muted-foreground">Recent assistants</div></Card><Card className="p-4"><Database className="size-4 text-muted-foreground"/><div className="mt-4 text-2xl font-semibold">{docs??0}</div><div className="text-xs text-muted-foreground">Indexed documents</div></Card><Card className="p-4"><MessageSquareText className="size-4 text-muted-foreground"/><div className="mt-4 text-2xl font-semibold">{conversations??0}</div><div className="text-xs text-muted-foreground">Conversations</div></Card></div><section className="mt-10"><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-medium">Recent assistants</h2><Link href="/app/bots" className="text-xs text-muted-foreground hover:text-foreground">View all</Link></div>{bots?.length?<div className="grid gap-3 lg:grid-cols-2">{bots.map(bot=><Link key={bot.id} href={`/app/bots/${bot.id}`}><Card className="group p-5 transition hover:border-[#35548e]"><div className="flex items-start justify-between"><div><div className="flex items-center gap-2"><h3 className="font-medium">{bot.name}</h3><Badge>{bot.bot_type}</Badge></div><p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{bot.description}</p></div><ArrowRight className="size-4 text-muted-foreground transition group-hover:translate-x-1"/></div></Card></Link>)}</div>:<Card className="p-6 text-sm text-muted-foreground">No assistants yet. Start from a template below.</Card>}</section><section className="mt-10"><h2 className="text-lg font-medium">Start from a specialist</h2><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{PRESET_LIST.map(p=><Link key={p.key} href={`/app/bots/new?preset=${p.key}`}><Card className="h-full p-5 transition hover:border-[#35548e]"><div className="flex items-center justify-between"><h3 className="font-medium">{p.name}</h3><Badge>{p.key}</Badge></div><p className="mt-2 text-sm leading-6 text-muted-foreground">{p.description}</p></Card></Link>)}</div></section></div>}
+export default async function HomePage() {
+  const { supabase } = await requireUser();
+  const { data: assistants } = await supabase
+    .from("bots")
+    .select("id,name,description,bot_type")
+    .order("updated_at", { ascending: false })
+    .limit(12);
+
+  const hasAssistants = Boolean(assistants?.length);
+
+  return (
+    <div className="mx-auto flex min-h-[calc(100dvh-5.5rem)] max-w-5xl flex-col justify-center py-8 sm:py-12 lg:min-h-[calc(100dvh-3rem)]">
+      <section className="mx-auto w-full max-w-2xl text-center">
+        <p className="text-xs font-medium text-[#8d99ab]">Grounded in evidence.</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">What do you want to work on?</h1>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground sm:text-[15px]">
+          Choose an assistant to start a sourced conversation, or create one around your own documents and instructions.
+        </p>
+        <div className="mt-6 flex justify-center">
+          <Link
+            href="/app/bots/new"
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#eef4ff] px-4 text-sm font-medium text-[#0b1f3b] transition hover:bg-white"
+          >
+            <Plus className="size-4" /> New assistant
+          </Link>
+        </div>
+      </section>
+
+      <section className="mt-10 sm:mt-12">
+        <div className="mb-3 flex items-center justify-between px-1">
+          <h2 className="text-sm font-medium text-[#dce5f2]">{hasAssistants ? "Your assistants" : "Start with a specialist"}</h2>
+          {hasAssistants ? <Link href="/app/bots" className="text-xs text-muted-foreground hover:text-foreground">View all</Link> : null}
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {hasAssistants ? assistants!.map((assistant) => (
+            <Link
+              key={assistant.id}
+              href={`/app/bots/${assistant.id}`}
+              className="group rounded-2xl border border-white/[.08] bg-white/[.025] p-4 transition hover:border-[#375681] hover:bg-white/[.045] sm:p-5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#14233a] text-[#9fc1ff]">
+                  <Bot className="size-4" />
+                </span>
+                <ArrowUpRight className="size-4 text-[#647184] opacity-60 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[#b6cdf3]" />
+              </div>
+              <h3 className="mt-4 truncate text-sm font-medium">{assistant.name}</h3>
+              <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{assistant.description || "Grounded assistant"}</p>
+            </Link>
+          )) : PRESET_LIST.slice(0, 6).map((preset) => (
+            <Link
+              key={preset.key}
+              href={`/app/bots/new?preset=${preset.key}`}
+              className="group rounded-2xl border border-white/[.08] bg-white/[.025] p-4 transition hover:border-[#375681] hover:bg-white/[.045] sm:p-5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#14233a] text-[#9fc1ff]">
+                  <Bot className="size-4" />
+                </span>
+                <ArrowUpRight className="size-4 text-[#647184] opacity-60 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[#b6cdf3]" />
+              </div>
+              <h3 className="mt-4 text-sm font-medium">{preset.name}</h3>
+              <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{preset.description}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
