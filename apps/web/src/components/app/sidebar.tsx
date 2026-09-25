@@ -6,7 +6,7 @@ import { Bot, ChevronDown, Home, LogOut, Menu, MessageSquare, Plus, Settings, X 
 import { useState } from "react";
 import { BrandLockup } from "@/components/app/brand";
 import { createClient } from "@/lib/supabase/client";
-import { PRESET_LIST } from "@/lib/bots/presets";
+import { ASSISTANT_CATALOG } from "@/lib/bots/catalog";
 import { cn } from "@/lib/utils";
 
 export type AssistantNavItem = {
@@ -104,7 +104,7 @@ function NavigationContent({
             <ChevronDown className="size-3.5 transition group-open:rotate-180" />
           </summary>
           <div className="mt-1 space-y-0.5">
-            {PRESET_LIST.map((preset) => {
+            {ASSISTANT_CATALOG.map((preset) => {
               const existing = assistantsByType.get(preset.key);
               const href = existing ? `/app/bots/${existing.id}` : `/app/bots/new?preset=${preset.key}`;
               const active = Boolean(existing && pathname.startsWith(`/app/bots/${existing.id}`));
