@@ -3,6 +3,8 @@
     "name": "India Legal Core",
     "slug": "legal-india-core",
     "description": "Core India legal authorities from official Government of India sources. This is a maintained foundation pack, not a claim of complete coverage of Indian law.",
+    "kind": "jurisdiction",
+    "bot_types": ["legal"],
     "jurisdiction_country": "India",
     "jurisdiction_region": null,
     "version": "2026.09"
@@ -10,7 +12,7 @@
   "sources": [
     {
       "title": "Constitution of India",
-      "canonical_url": "https://www.indiacode.nic.in/bitstream/123456789/15240/1/constitution_of_india.pdf",
+      "canonical_url": "https://www.legislative.gov.in/static/uploads/2025/07/88cca69e868e50b217f855be2fb8bdba.pdf",
       "publisher": "Legislative Department, Ministry of Law and Justice, Government of India",
       "authority_level": "official",
       "license_type": "official-government-source-review-required",
@@ -26,40 +28,40 @@
     },
     {
       "title": "Information Technology Act, 2000",
-      "canonical_url": "https://www.indiacode.nic.in/bitstream/123456789/13116/1/it_act_2000_updated.pdf",
-      "publisher": "India Code, Government of India",
+      "canonical_url": "https://www.meity.gov.in/static/uploads/2024/02/ITAct_0-1.pdf",
+      "publisher": "Ministry of Electronics and Information Technology, Government of India",
       "authority_level": "official",
       "license_type": "official-government-source-review-required",
       "refresh_interval_hours": 168
     },
     {
       "title": "Consumer Protection Act, 2019",
-      "canonical_url": "https://www.indiacode.nic.in/bitstream/123456789/15256/1/eng201935.pdf",
-      "publisher": "India Code, Government of India",
+      "canonical_url": "https://consumeraffairs.nic.in/sites/default/files/CP%20Act%202019.pdf",
+      "publisher": "Department of Consumer Affairs, Government of India",
       "authority_level": "official",
       "license_type": "official-government-source-review-required",
       "refresh_interval_hours": 168
     },
     {
       "title": "Bharatiya Nyaya Sanhita, 2023",
-      "canonical_url": "https://www.indiacode.nic.in/bitstream/123456789/20062/1/a202345.pdf",
-      "publisher": "India Code, Government of India",
+      "canonical_url": "https://www.mha.gov.in/sites/default/files/2024-04/250883_english_01042024.pdf",
+      "publisher": "Ministry of Home Affairs, Government of India",
       "authority_level": "official",
       "license_type": "official-government-source-review-required",
       "refresh_interval_hours": 168
     },
     {
       "title": "Bharatiya Nagarik Suraksha Sanhita, 2023",
-      "canonical_url": "https://www.indiacode.nic.in/bitstream/123456789/21920/1/the_bharatiya_nagarik_suraksha_sanhita%2C_2023.pdf",
-      "publisher": "India Code, Government of India",
+      "canonical_url": "https://www.mha.gov.in/sites/default/files/2024-04/250884_2_english_01042024.pdf",
+      "publisher": "Ministry of Home Affairs, Government of India",
       "authority_level": "official",
       "license_type": "official-government-source-review-required",
       "refresh_interval_hours": 168
     },
     {
       "title": "Bharatiya Sakshya Adhiniyam, 2023",
-      "canonical_url": "https://www.indiacode.nic.in/indiacode/bitstream/123456789/20063/1/aa202347.pdf",
-      "publisher": "India Code, Government of India",
+      "canonical_url": "https://www.mha.gov.in/sites/default/files/2024-04/250882_english_01042024_0.pdf",
+      "publisher": "Ministry of Home Affairs, Government of India",
       "authority_level": "official",
       "license_type": "official-government-source-review-required",
       "refresh_interval_hours": 168
