@@ -1,6 +1,5 @@
 "use client";
 
-import { Github } from "lucide-react";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -8,6 +7,10 @@ type OAuthProvider = "google" | "github" | "azure";
 
 function GoogleMark() {
   return <span className="grid size-4 place-items-center text-[13px] font-semibold text-foreground">G</span>;
+}
+
+function GitHubMark() {
+  return <span className="grid min-w-4 place-items-center text-[10px] font-bold tracking-[-0.08em] text-foreground">GH</span>;
 }
 
 function MicrosoftMark() {
@@ -21,7 +24,7 @@ function MicrosoftMark() {
 
 const providers: { id: OAuthProvider; label: string; icon: React.ReactNode }[] = [
   { id: "google", label: "Google", icon: <GoogleMark /> },
-  { id: "github", label: "GitHub", icon: <Github className="size-4" /> },
+  { id: "github", label: "GitHub", icon: <GitHubMark /> },
   { id: "azure", label: "Microsoft", icon: <MicrosoftMark /> },
 ];
 
