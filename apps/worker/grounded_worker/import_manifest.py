@@ -92,17 +92,18 @@ def import_manifest(path: str) -> None:
             country = pack.get("jurisdiction_country")
             region = pack.get("jurisdiction_region")
             if country:
+                priority = 90 if region else 80
                 conn.execute(
                     """
                     insert into public.bot_knowledge_bases(bot_id,knowledge_base_id,priority)
-                    select b.id,%s,case when %s is null then 80 else 90 end
+                    select b.id,%s,%s
                     from public.bots b
                     where b.bot_type=%s
                       and b.jurisdiction_country=%s
-                      and (%s is null or b.jurisdiction_region=%s)
+                      and (%s::text is null or b.jurisdiction_region=%s)
                     on conflict(bot_id,knowledge_base_id) do update set priority=excluded.priority
                     """,
-                    (kb["id"], region, bot_type, country, region, region),
+                    (kb["id"], priority, bot_type, country, region, region),
                 )
             else:
                 conn.execute(
