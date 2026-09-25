@@ -1,46 +1,81 @@
 import Link from "next/link";
 import { ArrowRight, BookOpen, Calculator, FileText, HeartPulse, PieChart, Scale, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BrandLockup, BrandMark } from "@/components/app/brand";
+import { BrandLockup } from "@/components/app/brand";
 
 const assistants = [
-  [Scale, "Legal research", "Jurisdiction-aware research with authoritative-source citations."],
-  [Calculator, "Tax & accounting", "Separate accounting and tax treatment with current-source grounding."],
-  [BookOpen, "Study", "Turn your own notes and course material into a personal tutor."],
-  [HeartPulse, "Health information", "Plain-language explanations grounded in curated and uploaded material."],
-  [PieChart, "Portfolio manager", "Weights, concentration and diversification analysis—no market predictions."],
-  [FileText, "Custom assistants", "Build any private assistant from your documents and instructions."],
+  [Scale, "Legal research"],
+  [Calculator, "Tax & accounting"],
+  [BookOpen, "Study"],
+  [HeartPulse, "Health information"],
+  [PieChart, "Portfolio analysis"],
+  [FileText, "Custom assistants"],
 ] as const;
 
 export default function LandingPage() {
   return (
-    <main>
-      <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-        <Link href="/" className="text-sm font-semibold tracking-tight"><BrandLockup priority /></Link>
-        <div className="flex gap-2"><Link href="/login"><Button variant="ghost">Log in</Button></Link><Link href="/signup"><Button>Start building</Button></Link></div>
-      </nav>
-      <section className="mx-auto grid max-w-7xl gap-12 px-6 pb-20 pt-20 lg:grid-cols-[1.05fr_.95fr] lg:items-center lg:pt-28">
-        <div>
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#33558f]/50 bg-card/80 px-3 py-1 text-xs text-muted-foreground"><ShieldCheck className="size-3.5 text-[#7baeff]"/> Evidence first</div>
-          <h1 className="max-w-4xl text-5xl font-semibold tracking-[-0.05em] sm:text-6xl lg:text-7xl">AI that answers from what it can trace.</h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">Provenance turns your documents, trusted sources and specialist workflows into assistants that can answer, analyze and explain with citations you can inspect.</p>
-          <div className="mt-8 flex flex-wrap gap-3"><Link href="/signup"><Button size="lg">Create an assistant <ArrowRight className="size-4"/></Button></Link><a href="#assistants"><Button size="lg" variant="outline">Explore assistants</Button></a></div>
-          <div className="mt-10 flex flex-wrap gap-x-8 gap-y-3 text-xs text-muted-foreground"><span>Hybrid retrieval</span><span>Private workspaces</span><span>Versioned sources</span><span>Optional web search</span><span>Inline citations</span></div>
+    <main className="min-h-dvh">
+      <nav className="mx-auto flex h-[72px] w-full max-w-6xl items-center justify-between px-4 sm:px-6">
+        <Link href="/" aria-label="Provenance home">
+          <BrandLockup priority markClassName="size-11" textClassName="text-[21px]" />
+        </Link>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <Link href="/login"><Button variant="ghost" className="px-3 sm:px-4">Log in</Button></Link>
+          <Link href="/signup"><Button className="px-3 sm:px-4">Get started</Button></Link>
         </div>
-        <div className="brand-glow rounded-[28px] border border-[#27436f] bg-[linear-gradient(180deg,rgba(11,31,59,.92),rgba(10,15,24,.98))] p-4 shadow-2xl shadow-black/40">
-          <div className="rounded-[22px] border border-[#2d4a77] bg-card/70 p-5">
-            <div className="mb-5 flex items-center justify-between"><div className="flex items-center gap-3"><BrandMark className="size-10 rounded-2xl" priority /><div><div className="text-sm font-medium">Legal Research Assistant</div><div className="mt-1 text-xs text-muted-foreground">India · Maharashtra · 18 indexed sources</div></div></div><span className="rounded-full border border-[#35548e] bg-[#10203b] px-2 py-1 text-[10px] text-[#b7cdf4]">Web off</span></div>
-            <div className="space-y-4 text-sm">
-              <div className="ml-auto max-w-[85%] rounded-2xl bg-[linear-gradient(180deg,#edf4ff,#dce9ff)] px-4 py-3 text-[#0b1f3b]">Does this termination clause override the statutory notice requirement?</div>
-              <div className="rounded-2xl border border-[#243b60] bg-[#0d1521] p-4 leading-7 text-[#d8e3f6]">Not automatically. Clause 12 allows contractual termination, but the statutory minimum remains relevant where it applies <span className="rounded bg-[#17273d] px-1.5 py-0.5 text-xs text-[#b9d1fb]">S1</span>. Your agreement also creates a separate notice obligation in clause 8.2 <span className="rounded bg-[#17273d] px-1.5 py-0.5 text-xs text-[#b9d1fb]">S2</span>…</div>
-              <div className="grid gap-2 sm:grid-cols-2"><div className="rounded-xl border border-[#253754] bg-[#0d131d] p-3 text-xs text-muted-foreground"><b className="text-[#dde9ff]">S1</b><br/>Official statute · current version</div><div className="rounded-xl border border-[#253754] bg-[#0d131d] p-3 text-xs text-muted-foreground"><b className="text-[#dde9ff]">S2</b><br/>Employment Agreement · p.14</div></div>
-            </div>
+      </nav>
+
+      <section className="mx-auto flex w-full max-w-5xl flex-col items-center px-5 pb-14 pt-20 text-center sm:px-6 sm:pb-20 sm:pt-28 lg:pt-32">
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/[.09] bg-white/[.025] px-3 py-1.5 text-[11px] text-muted-foreground">
+          <ShieldCheck className="size-3.5 text-[#8db7ff]" /> Grounded in evidence
+        </div>
+        <h1 className="mt-6 max-w-4xl text-[2.65rem] font-semibold leading-[1.02] tracking-[-0.055em] sm:text-6xl lg:text-[4.8rem]">
+          Ask your knowledge.<br className="hidden sm:block" /> See the evidence.
+        </h1>
+        <p className="mt-6 max-w-2xl text-[15px] leading-7 text-muted-foreground sm:text-lg sm:leading-8">
+          Provenance turns your documents and trusted sources into specialist AI assistants that answer with traceable citations.
+        </p>
+        <div className="mt-8 flex w-full max-w-sm flex-col justify-center gap-2.5 sm:w-auto sm:max-w-none sm:flex-row">
+          <Link href="/signup"><Button size="lg" className="w-full sm:w-auto">Create an assistant <ArrowRight className="size-4" /></Button></Link>
+          <Link href="/login"><Button size="lg" variant="outline" className="w-full sm:w-auto">Open workspace</Button></Link>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-5xl px-5 pb-16 sm:px-6 sm:pb-24">
+        <div className="grid gap-px overflow-hidden rounded-2xl border border-white/[.08] bg-white/[.08] md:grid-cols-3">
+          <div className="bg-[#0b0f16] p-5 sm:p-6">
+            <div className="text-sm font-medium">Use your sources</div>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">Upload private documents or connect curated knowledge packs.</p>
+          </div>
+          <div className="bg-[#0b0f16] p-5 sm:p-6">
+            <div className="text-sm font-medium">Retrieve before answering</div>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">Hybrid search finds relevant evidence before a response is generated.</p>
+          </div>
+          <div className="bg-[#0b0f16] p-5 sm:p-6">
+            <div className="text-sm font-medium">Inspect every claim</div>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">Citations keep important answers traceable to the underlying source.</p>
+          </div>
+        </div>
+
+        <div className="mt-12 sm:mt-16">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold tracking-[-0.025em] sm:text-2xl">One workspace, different specialists.</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Use a focused assistant or build your own.</p>
+          </div>
+          <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {assistants.map(([Icon, title]) => (
+              <div key={title} className="flex min-h-20 items-center gap-3 rounded-xl border border-white/[.08] bg-white/[.02] p-3.5 sm:min-h-24 sm:p-4">
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#14233a] text-[#9fc1ff]"><Icon className="size-4" /></span>
+                <span className="text-left text-xs font-medium leading-5 sm:text-sm">{title}</span>
+              </div>
+            ))}
           </div>
         </div>
       </section>
-      <section id="assistants" className="border-t border-[#1e2a3c] bg-[#0c1119]/70 py-20">
-        <div className="mx-auto max-w-7xl px-6"><div className="mb-10"><p className="text-xs uppercase tracking-[.2em] text-muted-foreground">Built-in expertise</p><h2 className="mt-3 text-3xl font-semibold tracking-tight">One platform, many knowledge systems.</h2></div><div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">{assistants.map(([Icon,title,description])=><div key={title} className="brand-card rounded-xl border border-border p-5"><Icon className="mb-6 size-5 text-[#8cb5ff]"/><h3 className="font-medium">{title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p></div>)}</div></div>
-      </section>
+
+      <footer className="border-t border-white/[.07] px-5 py-7 text-center text-[11px] text-muted-foreground sm:text-xs">
+        Private workspaces · Versioned sources · Inline citations · Open source
+      </footer>
     </main>
   );
 }
