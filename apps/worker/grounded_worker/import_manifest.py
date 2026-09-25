@@ -57,6 +57,14 @@ def import_manifest(path: str) -> None:
             ),
         ).fetchone()
 
+        # Treat the manifest as the authoritative active-source set for this pack.
+        # Old URLs remain in the registry for audit/history, but are disabled until
+        # a future manifest explicitly adds them back.
+        conn.execute(
+            "update public.source_registry set enabled=false where knowledge_base_id=%s",
+            (kb["id"],),
+        )
+
         for source in payload.get("sources", []):
             conn.execute(
                 """
