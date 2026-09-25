@@ -29,10 +29,14 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid assistant configuration" }, { status: 400 });
   if (!isPresetKey(parsed.data.botType)) return NextResponse.json({ error: "Unknown assistant type" }, { status: 400 });
+  if (parsed.data.botType !== "custom") {
+    return NextResponse.json(
+      { error: "Built-in assistants are provisioned automatically. Edit their settings instead of creating another copy." },
+      { status: 409 },
+    );
+  }
 
-  const preset = BOT_PRESETS[parsed.data.botType];
-  if (preset.requiresJurisdiction && !parsed.data.country) return NextResponse.json({ error: "Jurisdiction is required" }, { status: 400 });
-
+  const preset = BOT_PRESETS.custom;
   const { data: membership } = await supabase
     .from("organization_members")
     .select("organization_id")
@@ -49,12 +53,13 @@ export async function POST(req: Request) {
       owner_user_id: userId,
       name: parsed.data.name,
       description: parsed.data.description,
-      bot_type: parsed.data.botType,
+      bot_type: "custom",
       instructions: parsed.data.instructions,
-      jurisdiction_country: parsed.data.country || null,
-      jurisdiction_region: parsed.data.region || null,
+      jurisdiction_country: null,
+      jurisdiction_region: null,
       web_enabled: parsed.data.webEnabled,
       citations_required: preset.citationsRequired,
+      is_builtin: false,
     })
     .select("id")
     .single();
@@ -68,7 +73,13 @@ export async function POST(req: Request) {
 
   const { data: privateKb, error: kbError } = await supabase
     .from("knowledge_bases")
-    .insert({ organization_id: membership.organization_id, owner_user_id: userId, name: `${parsed.data.name} uploads`, kind: "private", visibility: "private" })
+    .insert({
+      organization_id: membership.organization_id,
+      owner_user_id: userId,
+      name: `${parsed.data.name} uploads`,
+      kind: "private",
+      visibility: "private",
+    })
     .select("id")
     .single();
   if (kbError || !privateKb) {
@@ -83,54 +94,6 @@ export async function POST(req: Request) {
   if (privateLinkError) {
     await rollback();
     return NextResponse.json({ error: `Could not attach private knowledge: ${privateLinkError.message}` }, { status: 400 });
-  }
-
-  if (preset.packSlugs.length) {
-    const { data: packs, error: packsError } = await supabase
-      .from("knowledge_bases")
-      .select("id")
-      .in("slug", preset.packSlugs)
-      .eq("visibility", "public");
-    if (packsError) {
-      await rollback();
-      return NextResponse.json({ error: `Could not load preset knowledge: ${packsError.message}` }, { status: 400 });
-    }
-    if (packs?.length) {
-      const { error: linkError } = await supabase
-        .from("bot_knowledge_bases")
-        .insert(packs.map((pack) => ({ bot_id: bot.id, knowledge_base_id: pack.id, priority: 50 })));
-      if (linkError) {
-        await rollback();
-        return NextResponse.json({ error: `Could not attach preset knowledge: ${linkError.message}` }, { status: 400 });
-      }
-    }
-  }
-
-  if (parsed.data.country && (parsed.data.botType === "legal" || parsed.data.botType === "accounting")) {
-    const { data: jurisdictionPacks, error: jurisdictionError } = await supabase
-      .from("knowledge_bases")
-      .select("id,slug,jurisdiction_region")
-      .eq("visibility", "public")
-      .eq("kind", "jurisdiction")
-      .eq("jurisdiction_country", parsed.data.country)
-      .like("slug", `${parsed.data.botType}-%`);
-    if (jurisdictionError) {
-      await rollback();
-      return NextResponse.json({ error: `Could not load jurisdiction knowledge: ${jurisdictionError.message}` }, { status: 400 });
-    }
-    const applicable = (jurisdictionPacks ?? []).filter(
-      (pack) => !pack.jurisdiction_region || !parsed.data.region || pack.jurisdiction_region === parsed.data.region,
-    );
-    if (applicable.length) {
-      const { error: linkError } = await supabase.from("bot_knowledge_bases").upsert(
-        applicable.map((pack) => ({ bot_id: bot.id, knowledge_base_id: pack.id, priority: pack.jurisdiction_region ? 90 : 80 })),
-        { onConflict: "bot_id,knowledge_base_id" },
-      );
-      if (linkError) {
-        await rollback();
-        return NextResponse.json({ error: `Could not attach jurisdiction knowledge: ${linkError.message}` }, { status: 400 });
-      }
-    }
   }
 
   return NextResponse.json({ id: bot.id }, { status: 201 });
