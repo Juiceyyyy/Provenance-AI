@@ -21,7 +21,23 @@ export type ChatBotInfo = {
   jurisdiction_region: string | null;
 };
 
-export function ChatShell({ bot, conversationId, initialMessages, starterPrompts }: { bot: ChatBotInfo; conversationId: string; initialMessages: UIMessage[]; starterPrompts: string[] }) {
+export function ChatShell({
+  bot,
+  conversationId,
+  initialMessages,
+  starterPrompts,
+  welcomeTitle,
+  welcomeBody,
+  placeholder,
+}: {
+  bot: ChatBotInfo;
+  conversationId: string;
+  initialMessages: UIMessage[];
+  starterPrompts: string[];
+  welcomeTitle: string;
+  welcomeBody: string;
+  placeholder: string;
+}) {
   const router = useRouter();
   const [input, setInput] = useState("");
   const [web, setWeb] = useState(false);
@@ -29,6 +45,7 @@ export function ChatShell({ bot, conversationId, initialMessages, starterPrompts
   const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat" }), []);
   const { messages, sendMessage, status, error, stop } = useChat({ id: conversationId, messages: initialMessages, transport });
   const busy = status === "streaming" || status === "submitted";
+  const emptyConversation = messages.length === 0;
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [messages, status]);
   useEffect(() => { if (error) toast.error(error.message); }, [error]);
@@ -52,12 +69,12 @@ export function ChatShell({ bot, conversationId, initialMessages, starterPrompts
   }
 
   return (
-    <div className="flex h-[calc(100dvh-5rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-white/[.08] bg-[#0b0e14] shadow-2xl shadow-black/10 lg:h-[calc(100dvh-3rem)] lg:rounded-2xl">
+    <div className="flex h-[calc(100dvh-5rem)] min-h-0 flex-col overflow-hidden rounded-2xl border border-white/[.075] bg-[#0b0e14] shadow-2xl shadow-black/10 lg:h-[calc(100dvh-3rem)]">
       <div className="flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-white/[.07] px-3 sm:px-4">
         <div className="min-w-0">
           <div className="truncate text-[13px] font-medium sm:text-sm">{bot.name}</div>
           <div className="mt-0.5 hidden truncate text-[10px] text-muted-foreground sm:block">
-            {bot.bot_type}{bot.jurisdiction_country ? ` · ${bot.jurisdiction_country}${bot.jurisdiction_region ? ` / ${bot.jurisdiction_region}` : ""}` : ""}
+            {bot.jurisdiction_country ? `${bot.jurisdiction_country}${bot.jurisdiction_region ? ` · ${bot.jurisdiction_region}` : ""}` : "Grounded assistant"}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
@@ -67,9 +84,7 @@ export function ChatShell({ bot, conversationId, initialMessages, starterPrompts
               <span className="hidden sm:inline">Web</span>
               <Switch checked={web} onCheckedChange={setWeb} />
             </div>
-          ) : (
-            <span className="hidden rounded-full border border-white/[.08] px-2 py-1 text-[10px] text-muted-foreground md:inline">Indexed sources only</span>
-          )}
+          ) : null}
           <button type="button" aria-label="New chat" onClick={newChat} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.06] hover:text-foreground">
             <MessageSquarePlus className="size-4" />
           </button>
@@ -81,25 +96,13 @@ export function ChatShell({ bot, conversationId, initialMessages, starterPrompts
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-5 sm:px-5 md:px-8 md:py-7">
         <div className="mx-auto w-full max-w-3xl space-y-5 sm:space-y-6">
-          {messages.length === 0 ? (
-            <div className="flex min-h-[46vh] flex-col items-center justify-center py-8 text-center">
-              <div className="grid size-10 place-items-center rounded-xl border border-white/[.08] bg-white/[.035]">
-                <Sparkles className="size-4 text-[#9fc1ff]" />
+          {emptyConversation ? (
+            <div className="flex min-h-[38vh] flex-col items-center justify-center px-2 py-10 text-center sm:min-h-[42vh]">
+              <div className="grid size-11 place-items-center rounded-2xl border border-white/[.08] bg-white/[.035] shadow-sm shadow-black/20">
+                <Sparkles className="size-[18px] text-[#9fc1ff]" />
               </div>
-              <h2 className="mt-4 text-base font-medium sm:text-lg">Ask {bot.name}</h2>
-              <p className="mx-auto mt-2 max-w-lg text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">{bot.description}</p>
-              <div className="mx-auto mt-6 grid w-full max-w-xl gap-2 sm:grid-cols-2">
-                {starterPrompts.slice(0, 4).map((prompt) => (
-                  <button
-                    type="button"
-                    onClick={() => submit(prompt)}
-                    key={prompt}
-                    className="rounded-xl border border-white/[.08] bg-white/[.025] p-3 text-left text-xs leading-5 text-[#aeb9c9] transition hover:border-[#3a5781] hover:bg-white/[.04] hover:text-foreground"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
+              <h1 className="mt-5 max-w-xl text-xl font-semibold tracking-[-0.025em] sm:text-2xl">{welcomeTitle}</h1>
+              <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-[#929eae]">{welcomeBody}</p>
             </div>
           ) : null}
 
@@ -122,28 +125,44 @@ export function ChatShell({ bot, conversationId, initialMessages, starterPrompts
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-white/[.07] bg-[#090c11] p-2.5 sm:p-3.5">
+      <div className="shrink-0 bg-[#0b0e14] px-2.5 pb-2.5 sm:px-3.5 sm:pb-3.5">
         <div className="mx-auto max-w-3xl">
-          <form onSubmit={(event) => { event.preventDefault(); submit(); }} className="rounded-2xl border border-white/[.09] bg-[#111722] p-2 shadow-lg shadow-black/10 focus-within:border-[#3c5e91]">
+          <form onSubmit={(event) => { event.preventDefault(); submit(); }} className="rounded-[22px] border border-white/[.1] bg-[#111722] p-2 shadow-[0_14px_40px_rgba(0,0,0,.22)] focus-within:border-[#496b9f]">
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); } }}
               rows={1}
-              placeholder={`Message ${bot.name}`}
-              className="max-h-36 min-h-11 w-full resize-none bg-transparent px-2 py-2.5 text-[16px] leading-6 outline-none placeholder:text-[#6f7a8b] sm:text-sm"
+              placeholder={placeholder}
+              className="max-h-36 min-h-12 w-full resize-none bg-transparent px-2.5 py-2.5 text-[16px] leading-6 outline-none placeholder:text-[#6f7a8b] sm:text-sm"
             />
-            <div className="flex items-center justify-between">
-              <button type="button" onClick={() => toast("Upload documents from Knowledge.")} className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.06] hover:text-foreground">
+            <div className="flex items-center justify-between px-0.5">
+              <Link href="/app/knowledge" aria-label="Add knowledge" className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.06] hover:text-foreground">
                 <Paperclip className="size-4" />
-              </button>
+              </Link>
               {busy ? (
                 <Button type="button" size="sm" variant="outline" onClick={() => stop()}>Stop</Button>
               ) : (
-                <Button type="submit" size="sm" disabled={!input.trim()} className="rounded-lg"><Send className="size-3.5" /><span className="hidden sm:inline">Send</span></Button>
+                <Button type="submit" size="sm" disabled={!input.trim()} className="rounded-xl px-3"><Send className="size-3.5" /><span className="hidden sm:inline">Send</span></Button>
               )}
             </div>
           </form>
+
+          {emptyConversation ? (
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:justify-center sm:overflow-visible">
+              {starterPrompts.slice(0, 4).map((prompt) => (
+                <button
+                  type="button"
+                  onClick={() => submit(prompt)}
+                  key={prompt}
+                  className="shrink-0 rounded-full border border-white/[.08] bg-white/[.025] px-3 py-2 text-left text-[11px] leading-4 text-[#9ba7b8] transition hover:border-[#3a5781] hover:bg-white/[.04] hover:text-foreground sm:max-w-[48%] sm:whitespace-normal"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <p className="mt-1.5 text-center text-[9px] leading-4 text-[#667184] sm:text-[10px]">Verify important claims against the cited source material.</p>
         </div>
       </div>
