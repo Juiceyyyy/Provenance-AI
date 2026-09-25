@@ -2,6 +2,12 @@ name: Free RAG worker
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "knowledge/manifests/**"
+      - "apps/worker/**"
+      - ".github/workflows/free-worker.yml"
   schedule:
     - cron: "*/15 * * * *"
 
