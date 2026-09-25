@@ -69,6 +69,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install . --extra-index-url https://download.pytorch.org/whl/cpu
 
+      - name: Register curated knowledge manifests
+        if: steps.config.outputs.ready == 'true'
+        working-directory: apps/worker
+        shell: bash
+        run: |
+          for manifest in ../../knowledge/manifests/*.json; do
+            if [[ "$(basename "$manifest")" == "example-jurisdiction.json" ]]; then
+              continue
+            fi
+            grounded-import-manifest "$manifest"
+          done
+
       - name: Verify Workers AI embedding access
         if: steps.config.outputs.ready == 'true'
         shell: bash
