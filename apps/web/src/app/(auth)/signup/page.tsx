@@ -22,7 +22,7 @@ export default function SignupPage() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${location.origin}/auth/confirm?next=/app` },
+      options: { emailRedirectTo: `${location.origin}/login` },
     });
     setMessage(error ? error.message : "Check your email to confirm your account, then sign in.");
     setLoading(false);
