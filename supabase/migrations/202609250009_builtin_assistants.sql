@@ -20,8 +20,8 @@ set search_path = ''
 as $$
 declare
   spec record;
-  bot_id uuid;
-  kb_id uuid;
+  v_bot_id uuid;
+  v_kb_id uuid;
 begin
   if p_user_id is null or p_org_id is null then
     return;
@@ -37,18 +37,18 @@ begin
       ('accounting'::text, 'Tax & Accounting Assistant'::text, 'Accounting, reporting and tax research grounded in standards, official tax material and company documents.'::text, false, true)
     ) as v(bot_type, name, description, web_enabled, citations_required)
   loop
-    bot_id := null;
-    kb_id := null;
+    v_bot_id := null;
+    v_kb_id := null;
 
     -- Adopt an existing specialist of this type if an older install already created one.
-    select b.id into bot_id
+    select b.id into v_bot_id
     from public.bots b
     where b.owner_user_id = p_user_id
       and b.bot_type = spec.bot_type
     order by b.created_at asc
     limit 1;
 
-    if bot_id is null then
+    if v_bot_id is null then
       insert into public.bots(
         organization_id,
         owner_user_id,
@@ -72,24 +72,24 @@ begin
         true,
         '2026.09'
       )
-      returning id into bot_id;
+      returning id into v_bot_id;
     else
       update public.bots
       set is_builtin = true,
           preset_version = coalesce(preset_version, '2026.09')
-      where id = bot_id;
+      where id = v_bot_id;
     end if;
 
-    select bkb.knowledge_base_id into kb_id
+    select bkb.knowledge_base_id into v_kb_id
     from public.bot_knowledge_bases bkb
     join public.knowledge_bases kb on kb.id = bkb.knowledge_base_id
-    where bkb.bot_id = bot_id
+    where bkb.bot_id = v_bot_id
       and kb.kind = 'private'
       and kb.owner_user_id = p_user_id
     order by kb.created_at asc
     limit 1;
 
-    if kb_id is null then
+    if v_kb_id is null then
       insert into public.knowledge_bases(
         organization_id,
         owner_user_id,
@@ -103,10 +103,10 @@ begin
         'private',
         'private'
       )
-      returning id into kb_id;
+      returning id into v_kb_id;
 
       insert into public.bot_knowledge_bases(bot_id, knowledge_base_id, priority)
-      values (bot_id, kb_id, 100)
+      values (v_bot_id, v_kb_id, 100)
       on conflict (bot_id, knowledge_base_id) do update set priority = excluded.priority;
     end if;
   end loop;
