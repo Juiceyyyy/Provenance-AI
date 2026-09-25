@@ -12,6 +12,8 @@ const patchSchema = z.object({
   webEnabled: z.boolean().optional(),
 });
 
+const LOCATION_AWARE_TYPES = new Set(["legal", "accounting", "health"]);
+
 export async function PATCH(req: Request, { params }: { params: Promise<{ botId: string }> }) {
   if (!isTrustedMutation(req)) return NextResponse.json({ error: "Cross-origin request rejected" }, { status: 403 });
   const { botId } = await params;
@@ -22,7 +24,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ botId:
 
   const { data: existing } = await supabase
     .from("bots")
-    .select("id,bot_type,jurisdiction_country,jurisdiction_region")
+    .select("id,bot_type,jurisdiction_country,jurisdiction_region,is_builtin")
     .eq("id", botId)
     .maybeSingle();
   if (!existing) return NextResponse.json({ error: "Assistant not found" }, { status: 404 });
@@ -34,18 +36,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ botId:
     return NextResponse.json({ error: "Jurisdiction country is required for this assistant" }, { status: 400 });
   }
 
-  const { error } = await supabase.from("bots").update({
-    ...(data.name !== undefined && { name: data.name }),
-    ...(data.description !== undefined && { description: data.description }),
-    ...(data.instructions !== undefined && { instructions: data.instructions }),
-    ...(data.country !== undefined && { jurisdiction_country: data.country }),
-    ...(data.region !== undefined && { jurisdiction_region: data.region }),
-    ...(data.webEnabled !== undefined && { web_enabled: data.webEnabled }),
-  }).eq("id", botId);
+  const { error } = await supabase
+    .from("bots")
+    .update({
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.description !== undefined && { description: data.description }),
+      ...(data.instructions !== undefined && { instructions: data.instructions }),
+      ...(data.country !== undefined && { jurisdiction_country: data.country }),
+      ...(data.region !== undefined && { jurisdiction_region: data.region }),
+      ...(data.webEnabled !== undefined && { web_enabled: data.webEnabled }),
+    })
+    .eq("id", botId);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   const jurisdictionChanged = data.country !== undefined || data.region !== undefined;
-  if (jurisdictionChanged && (existing.bot_type === "legal" || existing.bot_type === "accounting")) {
+  if (jurisdictionChanged && LOCATION_AWARE_TYPES.has(existing.bot_type)) {
     const { data: linkedJurisdictionPacks } = await supabase
       .from("bot_knowledge_bases")
       .select("knowledge_base_id,knowledge_bases!inner(kind,visibility)")
@@ -53,22 +58,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ botId:
       .eq("knowledge_bases.kind", "jurisdiction")
       .eq("knowledge_bases.visibility", "public");
     const oldIds = (linkedJurisdictionPacks ?? []).map((row) => row.knowledge_base_id);
-    if (oldIds.length) await supabase.from("bot_knowledge_bases").delete().eq("bot_id", botId).in("knowledge_base_id", oldIds);
+    if (oldIds.length) {
+      await supabase.from("bot_knowledge_bases").delete().eq("bot_id", botId).in("knowledge_base_id", oldIds);
+    }
 
-    const query = supabase
-      .from("knowledge_bases")
-      .select("id,jurisdiction_region")
-      .eq("visibility", "public")
-      .eq("kind", "jurisdiction")
-      .eq("jurisdiction_country", nextCountry!)
-      .like("slug", `${existing.bot_type}-%`);
-    const { data: packs } = await query;
-    const applicable = (packs ?? []).filter((pack) => !pack.jurisdiction_region || !nextRegion || pack.jurisdiction_region === nextRegion);
-    if (applicable.length) {
-      await supabase.from("bot_knowledge_bases").upsert(
-        applicable.map((pack) => ({ bot_id: botId, knowledge_base_id: pack.id, priority: pack.jurisdiction_region ? 90 : 80 })),
-        { onConflict: "bot_id,knowledge_base_id" },
+    if (nextCountry) {
+      const { data: packs } = await supabase
+        .from("knowledge_bases")
+        .select("id,jurisdiction_region")
+        .eq("visibility", "public")
+        .eq("kind", "jurisdiction")
+        .eq("jurisdiction_country", nextCountry)
+        .like("slug", `${existing.bot_type}-%`);
+      const applicable = (packs ?? []).filter(
+        (pack) => !pack.jurisdiction_region || Boolean(nextRegion && pack.jurisdiction_region === nextRegion),
       );
+      if (applicable.length) {
+        await supabase.from("bot_knowledge_bases").upsert(
+          applicable.map((pack) => ({
+            bot_id: botId,
+            knowledge_base_id: pack.id,
+            priority: pack.jurisdiction_region ? 90 : 80,
+          })),
+          { onConflict: "bot_id,knowledge_base_id" },
+        );
+      }
     }
   }
 
@@ -80,9 +94,19 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ botId
   const { botId } = await params;
   const { supabase, userId } = await requireApiUser();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { data: ownedBot } = await supabase.from("bots").select("id,owner_user_id").eq("id", botId).maybeSingle();
+  const { data: ownedBot } = await supabase
+    .from("bots")
+    .select("id,owner_user_id,is_builtin")
+    .eq("id", botId)
+    .maybeSingle();
   if (!ownedBot) return NextResponse.json({ error: "Assistant not found" }, { status: 404 });
   if (ownedBot.owner_user_id !== userId) return NextResponse.json({ error: "Only the assistant owner can delete it" }, { status: 403 });
+  if (ownedBot.is_builtin) {
+    return NextResponse.json(
+      { error: "Built-in assistants stay available in every workspace. You can fully edit their settings instead." },
+      { status: 409 },
+    );
+  }
 
   const { data: links } = await supabase
     .from("bot_knowledge_bases")
