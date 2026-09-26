@@ -16,6 +16,20 @@ class MalwareDetected(RuntimeError):
     pass
 
 
+_BROWSER_COMPAT_ROOTS = {
+    "cbic-gst.gov.in",
+    "consumeraffairs.nic.in",
+    "egazette.gov.in",
+    "incometax.gov.in",
+    "incometaxindia.gov.in",
+    "indiacode.nic.in",
+    "legislative.gov.in",
+    "mca.gov.in",
+    "meity.gov.in",
+    "mha.gov.in",
+}
+
+
 def _host_is_public(hostname: str) -> bool:
     if hostname.lower() in {"localhost", "localhost.localdomain"}:
         return False
@@ -46,20 +60,67 @@ def validate_public_http_url(url: str) -> str:
     return url
 
 
-def fetch_public_source(url: str, *, max_bytes: int, timeout_seconds: float = 60.0, max_redirects: int = 5) -> tuple[bytes, str, httpx.Headers]:
+def _browser_compat_allowed(url: str) -> bool:
+    hostname = (urlparse(url).hostname or "").lower().rstrip(".")
+    return any(hostname == root or hostname.endswith(f".{root}") for root in _BROWSER_COMPAT_ROOTS)
+
+
+def _request_headers(url: str, *, browser_compat: bool) -> dict[str, str]:
+    if not browser_compat:
+        return {
+            "User-Agent": "ProvenanceKnowledgeBot/1.0 (+source-refresh)",
+            "Accept": "application/pdf,text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
+        }
+
+    parsed = urlparse(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}/"
+    return {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"
+        ),
+        "Accept": "application/pdf,text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-IN,en;q=0.9",
+        "Referer": origin,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
+
+
+def fetch_public_source(
+    url: str,
+    *,
+    max_bytes: int,
+    timeout_seconds: float = 60.0,
+    max_redirects: int = 5,
+) -> tuple[bytes, str, httpx.Headers]:
     current = validate_public_http_url(url)
-    headers = {"User-Agent": "ProvenanceKnowledgeBot/1.0 (+source-refresh)"}
     timeout = httpx.Timeout(timeout_seconds, connect=min(15.0, timeout_seconds))
-    with httpx.Client(follow_redirects=False, timeout=timeout, headers=headers) as client:
-        for _ in range(max_redirects + 1):
+    redirects = 0
+    browser_compat = False
+
+    with httpx.Client(follow_redirects=False, timeout=timeout) as client:
+        while redirects <= max_redirects:
             validate_public_http_url(current)
-            with client.stream("GET", current) as response:
+            headers = _request_headers(current, browser_compat=browser_compat)
+            with client.stream("GET", current, headers=headers) as response:
                 if response.status_code in {301, 302, 303, 307, 308}:
                     location = response.headers.get("location")
                     if not location:
                         raise UnsafeSourceUrl("Redirect response did not include a Location header")
                     current = urljoin(current, location)
+                    redirects += 1
+                    browser_compat = False
                     continue
+
+                if (
+                    response.status_code in {403, 406}
+                    and not browser_compat
+                    and _browser_compat_allowed(current)
+                ):
+                    browser_compat = True
+                    continue
+
                 response.raise_for_status()
                 length = response.headers.get("content-length")
                 if length and int(length) > max_bytes:
@@ -70,6 +131,7 @@ def fetch_public_source(url: str, *, max_bytes: int, timeout_seconds: float = 60
                     if len(body) > max_bytes:
                         raise RuntimeError(f"Source exceeds maximum allowed size of {max_bytes} bytes")
                 return bytes(body), str(response.url), response.headers
+
     raise UnsafeSourceUrl(f"Source exceeded {max_redirects} redirects")
 
 
