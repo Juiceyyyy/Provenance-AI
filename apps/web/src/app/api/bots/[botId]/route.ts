@@ -12,6 +12,7 @@ const patchSchema = z.object({
   region: z.string().trim().max(100).nullable().optional(),
   webEnabled: z.boolean().optional(),
   followGlobalJurisdiction: z.boolean().optional(),
+  packIds: z.array(z.string().uuid()).max(100).optional(),
 });
 
 const LOCATION_AWARE_TYPES = new Set(["legal", "accounting", "health"]);
@@ -58,6 +59,28 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ botId:
     );
   }
 
+  if (data.packIds !== undefined && existing.bot_type !== "custom") {
+    return NextResponse.json({ error: "Manual shared-pack selection is available for Custom assistants." }, { status: 400 });
+  }
+
+  let validatedPackIds: string[] | undefined;
+  if (data.packIds !== undefined) {
+    validatedPackIds = [...new Set(data.packIds)];
+    if (validatedPackIds.length) {
+      const { data: allowedPacks, error: packsError } = await supabase
+        .from("knowledge_bases")
+        .select("id")
+        .in("id", validatedPackIds)
+        .eq("visibility", "public")
+        .in("coverage_status", ["active", "partial"]);
+      if (packsError) return NextResponse.json({ error: packsError.message }, { status: 400 });
+      const allowedIds = new Set((allowedPacks ?? []).map((pack) => String(pack.id)));
+      if (validatedPackIds.some((id) => !allowedIds.has(id))) {
+        return NextResponse.json({ error: "One or more selected knowledge packs are unavailable." }, { status: 400 });
+      }
+    }
+  }
+
   const { error } = await supabase
     .from("bots")
     .update({
@@ -71,6 +94,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ botId:
     .eq("id", botId)
     .eq("owner_user_id", userId);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+  if (validatedPackIds !== undefined) {
+    const { data: currentPublicLinks, error: linksError } = await supabase
+      .from("bot_knowledge_bases")
+      .select("knowledge_base_id,knowledge_bases!inner(visibility)")
+      .eq("bot_id", botId)
+      .eq("knowledge_bases.visibility", "public");
+    if (linksError) return NextResponse.json({ error: linksError.message }, { status: 400 });
+    const currentIds = (currentPublicLinks ?? []).map((link) => String(link.knowledge_base_id));
+    if (currentIds.length) {
+      const { error: deleteError } = await supabase
+        .from("bot_knowledge_bases")
+        .delete()
+        .eq("bot_id", botId)
+        .in("knowledge_base_id", currentIds);
+      if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 });
+    }
+    if (validatedPackIds.length) {
+      const { error: insertError } = await supabase.from("bot_knowledge_bases").insert(
+        validatedPackIds.map((knowledgeBaseId) => ({ bot_id: botId, knowledge_base_id: knowledgeBaseId, priority: 70 })),
+      );
+      if (insertError) return NextResponse.json({ error: insertError.message }, { status: 400 });
+    }
+  }
 
   if (locationAware) {
     await syncAssistantKnowledgePacks({
