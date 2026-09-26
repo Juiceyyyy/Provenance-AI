@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
+import { ensureBuiltinAssistantKnowledge } from "@/lib/bots/ensure-builtins";
 import { COUNTRIES, countryLabel } from "@/lib/geo/countries";
 import { PageHeader, PageShell, Surface } from "@/components/app/page-shell";
 import { GlobalDocumentUpload } from "@/components/knowledge/global-document-upload";
@@ -47,16 +48,22 @@ export default async function SettingsPage() {
   async function save(formData: FormData) {
     "use server";
     const { supabase, userId } = await requireUser();
-    await supabase
+    const country = String(formData.get("country") || "").slice(0, 80) || null;
+    const region = String(formData.get("region") || "").slice(0, 100) || null;
+    const { error } = await supabase
       .from("profiles")
       .update({
         display_name: String(formData.get("displayName") || "").slice(0, 120) || null,
-        default_country: String(formData.get("country") || "").slice(0, 80) || null,
-        default_region: String(formData.get("region") || "").slice(0, 100) || null,
+        default_country: country,
+        default_region: region,
         global_instructions: String(formData.get("globalInstructions") || "").slice(0, 12_000),
         updated_at: new Date().toISOString(),
       })
       .eq("id", userId);
+    if (error) throw new Error(error.message);
+
+    await ensureBuiltinAssistantKnowledge({ supabase, userId, jurisdiction: { country, region } });
+    revalidatePath("/app", "layout");
     revalidatePath("/app/settings");
   }
 
@@ -72,7 +79,7 @@ export default async function SettingsPage() {
         <Surface className="space-y-5 p-5 sm:p-6">
           <div>
             <h2 className="text-sm font-medium text-[#e2e8f1]">Account & jurisdiction</h2>
-            <p className="mt-1 text-xs leading-5 text-[#8591a2]">Your saved country controls which jurisdiction packs are offered by default. It is never inferred silently for legal or tax questions.</p>
+            <p className="mt-1 text-xs leading-5 text-[#8591a2]">Your saved country controls which jurisdiction packs are used by built-in specialists that follow global settings. It is never inferred silently for legal or tax questions.</p>
           </div>
           <div className="grid gap-5 sm:grid-cols-2">
             <label className="block text-xs text-[#8d98a8]">Display name<Input name="displayName" className="mt-2" defaultValue={profile?.display_name || ""} /></label>
@@ -90,7 +97,7 @@ export default async function SettingsPage() {
           </div>
           {!profile?.default_country && suggestedCountry ? (
             <div className="rounded-xl border border-white/[.07] bg-white/[.025] p-3 text-xs leading-5 text-[#8692a3]">
-              Suggested from coarse request location: {suggestedCountry}{ipRegion ? ` / ${ipRegion}` : ""}. Nothing is stored until you save.
+              Suggested from coarse request location: {suggestedCountry}{ipRegion ? ` / ${ipRegion}` : ""}. Nothing is stored or applied to an assistant until you save.
             </div>
           ) : null}
 
