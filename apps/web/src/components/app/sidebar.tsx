@@ -36,7 +36,7 @@ function NavLink({ href, children, active, collapsed = false, onNavigate, title 
       title={title}
       className={cn(
         "flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus/35",
-        collapsed && "justify-center px-0",
+        collapsed && "mx-auto size-10 min-h-10 justify-center px-0 py-0",
         active ? "bg-white/[.055] text-foreground" : "text-[#aeb4bd] hover:bg-white/[.035] hover:text-foreground",
       )}
     >
@@ -133,32 +133,55 @@ function NavigationContent({ assistants, conversations, email, collapsed = false
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface-soft">
-      <div className={cn("flex h-16 shrink-0 items-center justify-between", collapsed ? "px-2" : "px-3.5")}>
-        <Link href="/app" onClick={onNavigate} aria-label="Provenance home" title={collapsed ? "Provenance" : undefined}>
-          {collapsed ? <BrandMark priority className="size-9" /> : <BrandLockup priority markClassName="size-9" textClassName="text-[19px]" />}
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-soft">
+      <div className={cn(
+        "shrink-0",
+        collapsed ? "flex flex-col items-center gap-1.5 px-2 py-2.5" : "flex h-16 items-center justify-between px-3.5",
+      )}>
+        <Link href="/app" onClick={onNavigate} aria-label="Provenance home" title={collapsed ? "Provenance" : undefined} className={cn(collapsed && "grid size-10 place-items-center rounded-xl hover:bg-white/[.03]")}>
+          {collapsed ? <BrandMark priority className="size-8" /> : <BrandLockup priority markClassName="size-9" textClassName="text-[19px]" />}
         </Link>
         {onClose ? (
           <button onClick={onClose} aria-label="Close navigation" className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.04] hover:text-foreground"><X className="size-[18px]" /></button>
         ) : onToggleCollapse ? (
-          <button onClick={onToggleCollapse} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"} className="grid size-8 place-items-center rounded-lg text-subtle-foreground hover:bg-white/[.04] hover:text-foreground">
-            {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+          <button
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={cn(
+              "grid place-items-center rounded-lg border border-transparent text-subtle-foreground transition hover:border-border hover:bg-white/[.035] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus/35",
+              collapsed ? "size-9" : "size-8",
+            )}
+          >
+            {collapsed ? <PanelLeftOpen className="size-[17px]" /> : <PanelLeftClose className="size-4" />}
           </button>
         ) : null}
       </div>
 
-      <div className={cn("shrink-0 pb-2", collapsed ? "px-2" : "px-2.5")}>
-        <Link href="/app/bots/new" onClick={onNavigate} title={collapsed ? "New custom assistant" : undefined} aria-label="New custom assistant" className={cn("flex h-10 items-center rounded-lg border border-border bg-surface text-[13px] font-medium text-[#dfe3e9] transition hover:border-border-strong hover:bg-surface-raised", collapsed ? "justify-center px-0" : "gap-2.5 px-3") }>
+      <div className={cn("shrink-0 pb-2", collapsed ? "px-2.5" : "px-2.5")}>
+        <Link
+          href="/app/bots/new"
+          onClick={onNavigate}
+          title={collapsed ? "New custom assistant" : undefined}
+          aria-label="New custom assistant"
+          className={cn(
+            "flex h-10 items-center rounded-lg text-[13px] font-medium text-[#dfe3e9] transition",
+            collapsed
+              ? "mx-auto size-10 justify-center border border-transparent bg-transparent p-0 hover:border-border hover:bg-surface"
+              : "gap-2.5 border border-border bg-surface px-3 hover:border-border-strong hover:bg-surface-raised",
+          )}
+        >
           <Plus className="size-4 shrink-0 text-[#9dbaf0]" />{!collapsed ? "New custom assistant" : null}
         </Link>
       </div>
 
-      <div className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain pb-3", collapsed ? "px-2" : "px-2.5")}>
+      <div className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain pb-3 [scrollbar-gutter:stable]", collapsed ? "px-2.5" : "px-2.5")}>
         <nav className="space-y-0.5">
-          <NavLink href="/app" active={pathname === "/app"} collapsed={collapsed} onNavigate={onNavigate} title={collapsed ? "Home" : undefined}><Home className="size-4 shrink-0" />{!collapsed ? "Home" : null}</NavLink>
+          <NavLink href="/app" active={pathname === "/app"} collapsed={collapsed} onNavigate={onNavigate} title={collapsed ? "Home" : undefined}><Home className="size-[18px] shrink-0" />{!collapsed ? "Home" : null}</NavLink>
         </nav>
 
-        <div className={cn("mt-4 border-t border-border pt-3", collapsed && "space-y-1")}>
+        <div className={cn("mt-4 border-t border-border pt-3", collapsed && "mx-auto w-10 space-y-1") }>
           {!collapsed ? <div className="mb-1 px-2.5 text-[10px] font-medium uppercase tracking-[.12em] text-subtle-foreground">Assistants</div> : null}
           <div className="space-y-0.5">
             {ASSISTANT_CATALOG.map((preset) => {
@@ -201,12 +224,12 @@ function NavigationContent({ assistants, conversations, email, collapsed = false
         ) : null}
       </div>
 
-      <div className={cn("shrink-0 border-t border-border", collapsed ? "p-2" : "p-2.5")}>
+      <div className={cn("shrink-0 border-t border-border bg-surface-soft", collapsed ? "px-2.5 py-2" : "p-2.5")}>
         {collapsed ? (
-          <div className="flex flex-col items-center gap-1.5 py-1">
-            <div title={email || "Signed in"} className="grid size-8 place-items-center rounded-full border border-border bg-surface-raised text-xs font-semibold text-[#dce1e7]">{(email?.[0] || "P").toUpperCase()}</div>
-            <Link href="/app/settings" onClick={onNavigate} aria-label="Settings" title="Settings" className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.04] hover:text-foreground"><Settings className="size-4" /></Link>
-            <button onClick={signOut} disabled={signingOut} aria-label="Sign out" title="Sign out" className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.04] hover:text-foreground disabled:opacity-50"><LogOut className="size-4" /></button>
+          <div className="flex flex-col items-center gap-1">
+            <div title={email || "Signed in"} className="mb-1 grid size-9 place-items-center rounded-full border border-border bg-surface-raised text-xs font-semibold text-[#dce1e7]">{(email?.[0] || "P").toUpperCase()}</div>
+            <Link href="/app/settings" onClick={onNavigate} aria-label="Settings" title="Settings" className="grid size-10 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.04] hover:text-foreground"><Settings className="size-[18px]" /></Link>
+            <button onClick={signOut} disabled={signingOut} aria-label="Sign out" title="Sign out" className="grid size-10 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.04] hover:text-foreground disabled:opacity-50"><LogOut className="size-[18px]" /></button>
           </div>
         ) : (
           <div className="flex items-center gap-2 rounded-lg px-2 py-2">
@@ -240,7 +263,7 @@ export function Sidebar({ assistants, conversations, email }: { assistants: Assi
 
   return (
     <>
-      <aside className={cn("sticky top-0 hidden h-dvh shrink-0 border-r border-border transition-[width] duration-200 lg:block", collapsed ? "w-[68px]" : "w-[252px]")}>
+      <aside className={cn("sticky top-0 z-30 hidden h-dvh max-h-dvh self-start shrink-0 overflow-hidden border-r border-border transition-[width] duration-150 lg:block", collapsed ? "w-[76px]" : "w-[252px]")}>
         <NavigationContent assistants={assistants} conversations={conversations} email={email} collapsed={collapsed} onToggleCollapse={toggleCollapsed} />
       </aside>
       <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur lg:hidden">
