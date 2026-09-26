@@ -28,6 +28,7 @@ export function GlobalDocumentUpload() {
       body: JSON.stringify({
         scope: "global",
         knowledgeBaseId: info.knowledgeBaseId,
+        reservationId: info.reservationId,
         path: info.path,
         filename: file.name,
         mimeType,
