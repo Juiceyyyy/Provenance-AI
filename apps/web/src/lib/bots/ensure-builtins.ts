@@ -17,11 +17,18 @@ export async function ensureBuiltinAssistantKnowledge({
   userId: string;
   jurisdiction: RequestJurisdiction;
 }) {
-  const { data: bots } = await supabase
-    .from("bots")
-    .select("id,bot_type,jurisdiction_country,jurisdiction_region,is_builtin")
-    .eq("owner_user_id", userId)
-    .eq("is_builtin", true);
+  const [{ data: bots }, { data: publicPacks }] = await Promise.all([
+    supabase
+      .from("bots")
+      .select("id,bot_type,jurisdiction_country,jurisdiction_region,is_builtin")
+      .eq("owner_user_id", userId)
+      .eq("is_builtin", true),
+    supabase
+      .from("knowledge_bases")
+      .select("id,slug,domains,jurisdiction_country,jurisdiction_region,coverage_status")
+      .eq("visibility", "public")
+      .neq("coverage_status", "planned"),
+  ]);
 
   if (!bots?.length) return;
 
@@ -33,7 +40,7 @@ export async function ensureBuiltinAssistantKnowledge({
     let country = bot.jurisdiction_country as string | null;
     let region = bot.jurisdiction_region as string | null;
 
-    // Only initialize location once. User edits in assistant settings always win afterwards.
+    // Initialize location once. Explicit assistant-level edits remain authoritative afterwards.
     if (LOCATION_AWARE_TYPES.has(type) && !country && jurisdiction.country) {
       country = jurisdiction.country;
       region = jurisdiction.region || null;
@@ -44,41 +51,32 @@ export async function ensureBuiltinAssistantKnowledge({
         .eq("owner_user_id", userId);
     }
 
-    const links: Array<{ bot_id: string; knowledge_base_id: string; priority: number }> = [];
+    const requestedCountry = country?.toLocaleLowerCase();
+    const requestedRegion = region?.toLocaleLowerCase();
+    const explicitSlugs = new Set(preset.packSlugs);
+    const links = new Map<string, number>();
 
-    if (preset.packSlugs.length) {
-      const { data: sharedPacks } = await supabase
-        .from("knowledge_bases")
-        .select("id,slug")
-        .eq("visibility", "public")
-        .in("slug", preset.packSlugs);
-      for (const pack of sharedPacks ?? []) {
-        links.push({ bot_id: bot.id, knowledge_base_id: pack.id, priority: 60 });
+    for (const pack of publicPacks ?? []) {
+      const packDomains = (pack.domains ?? []) as string[];
+      const explicit = Boolean(pack.slug && explicitSlugs.has(pack.slug));
+      const domainMatch = packDomains.includes(type);
+      if (!explicit && !domainMatch) continue;
+
+      if (!pack.jurisdiction_country) {
+        links.set(pack.id, Math.max(links.get(pack.id) ?? 0, 60));
+        continue;
       }
+      if (!LOCATION_AWARE_TYPES.has(type) || !requestedCountry) continue;
+      if (String(pack.jurisdiction_country).toLocaleLowerCase() !== requestedCountry) continue;
+      if (pack.jurisdiction_region && (!requestedRegion || String(pack.jurisdiction_region).toLocaleLowerCase() !== requestedRegion)) continue;
+      links.set(pack.id, Math.max(links.get(pack.id) ?? 0, pack.jurisdiction_region ? 90 : 80));
     }
 
-    if (LOCATION_AWARE_TYPES.has(type) && country) {
-      const { data: localPacks } = await supabase
-        .from("knowledge_bases")
-        .select("id,jurisdiction_region")
-        .eq("visibility", "public")
-        .eq("kind", "jurisdiction")
-        .ilike("jurisdiction_country", country)
-        .like("slug", `${type}-%`);
-      const requestedRegion = region?.toLocaleLowerCase();
-
-      for (const pack of localPacks ?? []) {
-        if (pack.jurisdiction_region && (!requestedRegion || pack.jurisdiction_region.toLocaleLowerCase() !== requestedRegion)) continue;
-        links.push({
-          bot_id: bot.id,
-          knowledge_base_id: pack.id,
-          priority: pack.jurisdiction_region ? 90 : 80,
-        });
-      }
-    }
-
-    if (links.length) {
-      await supabase.from("bot_knowledge_bases").upsert(links, { onConflict: "bot_id,knowledge_base_id" });
+    if (links.size) {
+      await supabase.from("bot_knowledge_bases").upsert(
+        [...links.entries()].map(([knowledgeBaseId, priority]) => ({ bot_id: bot.id, knowledge_base_id: knowledgeBaseId, priority })),
+        { onConflict: "bot_id,knowledge_base_id" },
+      );
     }
   }
 }
