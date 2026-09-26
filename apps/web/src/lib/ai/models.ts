@@ -15,7 +15,10 @@ function hasGatewayAuth() {
 }
 
 export function languageModel() {
-  if (workersAi) return workersAi(env.CLOUDFLARE_AI_MODEL);
+  // Workers AI text models such as GLM use the OpenAI-compatible Chat Completions
+  // endpoint. The callable createOpenAI provider defaults to the Responses API in
+  // current AI SDK releases, which Workers AI only supports for GPT-OSS models.
+  if (workersAi) return workersAi.chat(env.CLOUDFLARE_AI_MODEL);
 
   if (!env.ALLOW_BILLABLE_AI) {
     throw new Error(
