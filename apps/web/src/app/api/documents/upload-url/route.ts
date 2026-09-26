@@ -47,11 +47,21 @@ export async function POST(req: Request) {
       conversationId: parsed.data.conversationId,
     });
     const path = `${resolved.storagePrefix}${crypto.randomUUID()}-${clean(parsed.data.filename)}`;
+
+    const { data: reservationId, error: reservationError } = await supabase.rpc("reserve_knowledge_upload", {
+      p_bytes: parsed.data.size,
+      p_storage_path: path,
+    });
+    if (reservationError || !reservationId) {
+      return NextResponse.json({ error: reservationError?.message || "Knowledge storage quota reached" }, { status: 409 });
+    }
+
     const { data, error } = await supabase.storage.from("documents").createSignedUploadUrl(path);
     if (error || !data) return NextResponse.json({ error: error?.message || "Could not create upload URL" }, { status: 400 });
     return NextResponse.json({
       path,
       token: data.token,
+      reservationId,
       knowledgeBaseId: resolved.knowledgeBaseId,
       scope: parsed.data.scope,
     });

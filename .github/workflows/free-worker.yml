@@ -144,6 +144,11 @@ jobs:
         working-directory: apps/worker
         run: grounded-worker
 
+      - name: Clean abandoned transient uploads
+        if: steps.config.outputs.ready == 'true'
+        working-directory: apps/worker
+        run: python -m grounded_worker.cleanup_uploads
+
       - name: Report source refresh warnings
         if: steps.config.outputs.ready == 'true' && steps.refresh.outcome == 'failure'
         run: |

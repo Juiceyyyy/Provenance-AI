@@ -112,6 +112,7 @@ export function ChatShell({
         botId: bot.id,
         conversationId,
         knowledgeBaseId: info.knowledgeBaseId,
+        reservationId: info.reservationId,
         path: info.path,
         filename: file.name,
         mimeType,

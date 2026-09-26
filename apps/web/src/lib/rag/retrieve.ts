@@ -10,29 +10,90 @@ type CloudflareEmbeddingResponse = {
   error?: { message?: string };
 };
 
-async function embedQuery(value: string): Promise<number[]> {
-  if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN) {
-    throw new Error("Free-tier embeddings are not configured. Set Cloudflare Workers AI credentials.");
+export type QueryEmbeddingResult = {
+  embedding: number[] | null;
+  embeddingMs: number;
+  fallback: boolean;
+  fallbackReason: string | null;
+};
+
+export type RetrievalMetrics = {
+  embeddingMs: number;
+  retrievalMs: number;
+  embeddingFallback: boolean;
+  embeddingFallbackReason: string | null;
+  matchCount: number;
+};
+
+function adaptiveMatchCount(query: string) {
+  const normalized = query.trim().toLowerCase();
+  const words = normalized.split(/\s+/).filter(Boolean).length;
+  const complex = /\b(compare|analyse|analyze|explain|summari[sz]e|across|multiple|all documents|deep|comprehensive|research|implications|differences|pros and cons)\b/.test(normalized);
+  const medium = /\b(why|how|calculate|requirements?|rules?|section|regulation|tax|legal|accounting|health)\b/.test(normalized);
+  const requested = complex || words > 45 ? 10 : medium || words > 22 ? 7 : 4;
+  return Math.max(1, Math.min(env.MAX_RAG_CHUNKS, requested));
+}
+
+export function startQueryEmbedding(value: string): Promise<QueryEmbeddingResult> {
+  const startedAt = Date.now();
+  if (!value.trim()) {
+    return Promise.resolve({ embedding: null, embeddingMs: 0, fallback: true, fallbackReason: "empty-query" });
   }
-  const response = await fetch(
+  if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN) {
+    return Promise.resolve({
+      embedding: null,
+      embeddingMs: 0,
+      fallback: true,
+      fallbackReason: "embedding-provider-not-configured",
+    });
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), env.EMBEDDING_TIMEOUT_MS);
+  return fetch(
     `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/ai/v1/embeddings`,
     {
       method: "POST",
       headers: { authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`, "content-type": "application/json" },
       body: JSON.stringify({ model: env.CLOUDFLARE_EMBEDDING_MODEL, input: value.slice(0, 24_000) }),
       cache: "no-store",
+      signal: controller.signal,
     },
-  );
-  const body = (await response.json().catch(() => null)) as CloudflareEmbeddingResponse | null;
-  if (!response.ok) {
-    const detail = body?.error?.message?.slice(0, 500);
-    throw new Error(`Cloudflare embedding request failed (${response.status})${detail ? `: ${detail}` : ""}`);
-  }
-  const embedding = body?.data?.[0]?.embedding;
-  if (!Array.isArray(embedding) || embedding.length !== EMBEDDING_DIMENSIONS) {
-    throw new Error(`Cloudflare returned an invalid embedding dimension: ${embedding?.length ?? 0}`);
-  }
-  return embedding;
+  )
+    .then(async (response) => {
+      const body = (await response.json().catch(() => null)) as CloudflareEmbeddingResponse | null;
+      if (!response.ok) {
+        const detail = body?.error?.message?.slice(0, 160);
+        return {
+          embedding: null,
+          embeddingMs: Date.now() - startedAt,
+          fallback: true,
+          fallbackReason: `provider-${response.status}${detail ? `:${detail}` : ""}`,
+        } satisfies QueryEmbeddingResult;
+      }
+      const embedding = body?.data?.[0]?.embedding;
+      if (!Array.isArray(embedding) || embedding.length !== EMBEDDING_DIMENSIONS) {
+        return {
+          embedding: null,
+          embeddingMs: Date.now() - startedAt,
+          fallback: true,
+          fallbackReason: `invalid-dimension-${embedding?.length ?? 0}`,
+        } satisfies QueryEmbeddingResult;
+      }
+      return {
+        embedding,
+        embeddingMs: Date.now() - startedAt,
+        fallback: false,
+        fallbackReason: null,
+      } satisfies QueryEmbeddingResult;
+    })
+    .catch((error: unknown) => ({
+      embedding: null,
+      embeddingMs: Date.now() - startedAt,
+      fallback: true,
+      fallbackReason: error instanceof Error && error.name === "AbortError" ? "timeout" : "provider-error",
+    } satisfies QueryEmbeddingResult))
+    .finally(() => clearTimeout(timer));
 }
 
 export async function retrieveChunks(
@@ -40,18 +101,42 @@ export async function retrieveChunks(
   botId: string,
   query: string,
   conversationId?: string | null,
-): Promise<RetrievedChunk[]> {
-  if (!query.trim()) return [];
-  const embedding = await embedQuery(query);
+  embeddingPromise?: Promise<QueryEmbeddingResult>,
+): Promise<{ chunks: RetrievedChunk[]; metrics: RetrievalMetrics }> {
+  const matchCount = adaptiveMatchCount(query);
+  if (!query.trim()) {
+    return {
+      chunks: [],
+      metrics: {
+        embeddingMs: 0,
+        retrievalMs: 0,
+        embeddingFallback: true,
+        embeddingFallbackReason: "empty-query",
+        matchCount,
+      },
+    };
+  }
+
+  const embeddingResult = await (embeddingPromise ?? startQueryEmbedding(query));
+  const retrievalStartedAt = Date.now();
   const { data, error } = await supabase.rpc("hybrid_search_chunks_scoped", {
     p_bot_id: botId,
     p_conversation_id: conversationId ?? null,
     p_query_text: query.slice(0, 8_000),
-    p_query_embedding: embedding,
-    p_match_count: env.MAX_RAG_CHUNKS,
+    p_query_embedding: embeddingResult.embedding,
+    p_match_count: matchCount,
   });
   if (error) throw new Error(`Retrieval failed: ${error.message}`);
-  return (data ?? []) as RetrievedChunk[];
+  return {
+    chunks: (data ?? []) as RetrievedChunk[],
+    metrics: {
+      embeddingMs: embeddingResult.embeddingMs,
+      retrievalMs: Date.now() - retrievalStartedAt,
+      embeddingFallback: embeddingResult.fallback,
+      embeddingFallbackReason: embeddingResult.fallbackReason,
+      matchCount,
+    },
+  };
 }
 
 export function chunksToContext(chunks: RetrievedChunk[]) {

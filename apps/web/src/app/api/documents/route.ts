@@ -9,6 +9,7 @@ const schema = z.object({
   botId: z.string().uuid().optional(),
   conversationId: z.string().uuid().optional(),
   knowledgeBaseId: z.string().uuid(),
+  reservationId: z.string().uuid(),
   path: z.string().min(10).max(700),
   filename: z.string().min(1).max(240),
   mimeType: z.string().max(160),
@@ -20,7 +21,7 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { data, error } = await supabase
     .from("documents")
-    .select("id,title,status,mime_type,byte_size,created_at,knowledge_bases(name),document_versions(version_number,status,error_message,processed_at)")
+    .select("id,title,status,mime_type,byte_size,raw_storage_bytes,processed_byte_size,chunk_count,created_at,knowledge_bases(name),document_versions(version_number,status,error_message,processed_at)")
     .eq("owner_user_id", userId)
     .order("created_at", { ascending: false })
     .limit(100);
@@ -53,6 +54,16 @@ export async function POST(req: Request) {
     }
 
     const cleanupFile = async () => { await supabase.storage.from("documents").remove([input.path]); };
+    const { data: claimed, error: claimError } = await supabase.rpc("claim_knowledge_upload_reservation", {
+      p_reservation_id: input.reservationId,
+      p_bytes: input.size,
+      p_storage_path: input.path,
+    });
+    if (claimError || claimed !== true) {
+      await cleanupFile();
+      return NextResponse.json({ error: claimError?.message || "Upload reservation expired or was already used" }, { status: 409 });
+    }
+
     const { data: document, error } = await supabase
       .from("documents")
       .insert({
@@ -62,6 +73,7 @@ export async function POST(req: Request) {
         title: input.filename,
         mime_type: input.mimeType,
         byte_size: input.size,
+        raw_storage_bytes: input.size,
         status: "queued",
         metadata: { scope: input.scope, conversation_id: input.conversationId || null },
       })
