@@ -1,0 +1,32 @@
+{
+  "pack": {
+    "name": "International Law Core",
+    "slug": "international-law-core",
+    "description": "Core international public-law references. International instruments are evidence of international obligations or principles and must not be presented as automatically incorporated into every country's domestic law.",
+    "kind": "curated",
+    "domains": ["legal"],
+    "bot_types": ["legal"],
+    "coverage_status": "partial",
+    "jurisdiction_country": null,
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "Charter of the United Nations - Treaty Status",
+      "canonical_url": "https://treaties.un.org/pages/ShowMTDSGDetails.aspx?chapter=1&lang=en&mtdsg_no=I-1&src=UNTSONLINE&tabid=2",
+      "publisher": "United Nations Treaty Collection",
+      "authority_level": "official",
+      "license_type": "official-public-source-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "Universal Declaration of Human Rights",
+      "canonical_url": "https://www.ohchr.org/en/human-rights/universal-declaration/translations/english",
+      "publisher": "Office of the United Nations High Commissioner for Human Rights",
+      "authority_level": "official",
+      "license_type": "official-public-source-review-required",
+      "refresh_interval_hours": 720
+    }
+  ]
+}
