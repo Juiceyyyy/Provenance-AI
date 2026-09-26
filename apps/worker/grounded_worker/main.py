@@ -402,7 +402,10 @@ def run() -> None:
                     process_job(settings, conn, storage, ai, converter, curated_pdf_converter, job)
                 except Exception as exc:  # noqa: BLE001 - worker boundary must trap parser/provider failures
                     terminal = fail_job(conn, job, exc)
-                    if terminal:
+                    if terminal and job.get("owner_user_id"):
+                        # Failed private uploads should release user storage immediately.
+                        # Failed curated sources retain raw bytes so operators can retry the
+                        # same queued version even though source_registry already recorded its hash.
                         _cleanup_raw_storage(conn, storage, job)
                 processed += 1
             if settings.one_shot:
