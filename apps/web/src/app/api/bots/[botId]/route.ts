@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiUser } from "@/lib/auth";
+import { syncAssistantKnowledgePacks } from "@/lib/bots/ensure-builtins";
 import { isTrustedMutation } from "@/lib/security/request";
 
 const patchSchema = z.object({
@@ -10,6 +11,7 @@ const patchSchema = z.object({
   country: z.string().trim().max(80).nullable().optional(),
   region: z.string().trim().max(100).nullable().optional(),
   webEnabled: z.boolean().optional(),
+  followGlobalJurisdiction: z.boolean().optional(),
 });
 
 const LOCATION_AWARE_TYPES = new Set(["legal", "accounting", "health"]);
@@ -24,16 +26,36 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ botId:
 
   const { data: existing } = await supabase
     .from("bots")
-    .select("id,bot_type,jurisdiction_country,jurisdiction_region,is_builtin")
+    .select("id,owner_user_id,bot_type,jurisdiction_country,jurisdiction_region,is_builtin,follow_profile_jurisdiction")
     .eq("id", botId)
+    .eq("owner_user_id", userId)
     .maybeSingle();
   if (!existing) return NextResponse.json({ error: "Assistant not found" }, { status: 404 });
 
   const data = parsed.data;
-  const nextCountry = data.country !== undefined ? data.country : existing.jurisdiction_country;
-  const nextRegion = data.region !== undefined ? data.region : existing.jurisdiction_region;
+  const locationAware = LOCATION_AWARE_TYPES.has(existing.bot_type);
+  const canFollowGlobal = existing.is_builtin && locationAware;
+  const followGlobal = canFollowGlobal
+    ? (data.followGlobalJurisdiction ?? existing.follow_profile_jurisdiction)
+    : false;
+
+  let nextCountry = data.country !== undefined ? data.country : existing.jurisdiction_country;
+  let nextRegion = data.region !== undefined ? data.region : existing.jurisdiction_region;
+  if (followGlobal) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("default_country,default_region")
+      .eq("id", userId)
+      .maybeSingle();
+    nextCountry = profile?.default_country || null;
+    nextRegion = profile?.default_region || null;
+  }
+
   if ((existing.bot_type === "legal" || existing.bot_type === "accounting") && !nextCountry) {
-    return NextResponse.json({ error: "Jurisdiction country is required for this assistant" }, { status: 400 });
+    return NextResponse.json(
+      { error: followGlobal ? "Set a default country in global Settings first, or turn off ‘Follow global jurisdiction’." : "Jurisdiction country is required for this assistant" },
+      { status: 400 },
+    );
   }
 
   const { error } = await supabase
@@ -42,49 +64,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ botId:
       ...(data.name !== undefined && { name: data.name }),
       ...(data.description !== undefined && { description: data.description }),
       ...(data.instructions !== undefined && { instructions: data.instructions }),
-      ...(data.country !== undefined && { jurisdiction_country: data.country }),
-      ...(data.region !== undefined && { jurisdiction_region: data.region }),
+      ...(locationAware && { jurisdiction_country: nextCountry, jurisdiction_region: nextRegion }),
+      ...(canFollowGlobal && { follow_profile_jurisdiction: followGlobal }),
       ...(data.webEnabled !== undefined && { web_enabled: data.webEnabled }),
     })
-    .eq("id", botId);
+    .eq("id", botId)
+    .eq("owner_user_id", userId);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  const jurisdictionChanged = data.country !== undefined || data.region !== undefined;
-  if (jurisdictionChanged && LOCATION_AWARE_TYPES.has(existing.bot_type)) {
-    const { data: linkedJurisdictionPacks } = await supabase
-      .from("bot_knowledge_bases")
-      .select("knowledge_base_id,knowledge_bases!inner(kind,visibility)")
-      .eq("bot_id", botId)
-      .eq("knowledge_bases.kind", "jurisdiction")
-      .eq("knowledge_bases.visibility", "public");
-    const oldIds = (linkedJurisdictionPacks ?? []).map((row) => row.knowledge_base_id);
-    if (oldIds.length) {
-      await supabase.from("bot_knowledge_bases").delete().eq("bot_id", botId).in("knowledge_base_id", oldIds);
-    }
-
-    if (nextCountry) {
-      const { data: packs } = await supabase
-        .from("knowledge_bases")
-        .select("id,jurisdiction_region")
-        .eq("visibility", "public")
-        .eq("kind", "jurisdiction")
-        .ilike("jurisdiction_country", nextCountry)
-        .like("slug", `${existing.bot_type}-%`);
-      const requestedRegion = nextRegion?.toLocaleLowerCase();
-      const applicable = (packs ?? []).filter(
-        (pack) => !pack.jurisdiction_region || Boolean(requestedRegion && pack.jurisdiction_region.toLocaleLowerCase() === requestedRegion),
-      );
-      if (applicable.length) {
-        await supabase.from("bot_knowledge_bases").upsert(
-          applicable.map((pack) => ({
-            bot_id: botId,
-            knowledge_base_id: pack.id,
-            priority: pack.jurisdiction_region ? 90 : 80,
-          })),
-          { onConflict: "bot_id,knowledge_base_id" },
-        );
-      }
-    }
+  if (locationAware) {
+    await syncAssistantKnowledgePacks({
+      supabase,
+      bot: {
+        id: existing.id,
+        bot_type: existing.bot_type,
+        jurisdiction_country: nextCountry,
+        jurisdiction_region: nextRegion,
+        follow_profile_jurisdiction: followGlobal,
+      },
+    });
   }
 
   return NextResponse.json({ ok: true });
@@ -99,9 +97,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ botId
     .from("bots")
     .select("id,owner_user_id,is_builtin")
     .eq("id", botId)
+    .eq("owner_user_id", userId)
     .maybeSingle();
   if (!ownedBot) return NextResponse.json({ error: "Assistant not found" }, { status: 404 });
-  if (ownedBot.owner_user_id !== userId) return NextResponse.json({ error: "Only the assistant owner can delete it" }, { status: 403 });
   if (ownedBot.is_builtin) {
     return NextResponse.json(
       { error: "Built-in assistants stay available in every workspace. You can fully edit their settings instead." },
@@ -129,7 +127,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ botId
     }
   }
 
-  const { error: botError } = await supabase.from("bots").delete().eq("id", botId);
+  const { error: botError } = await supabase.from("bots").delete().eq("id", botId).eq("owner_user_id", userId);
   if (botError) return NextResponse.json({ error: botError.message }, { status: 400 });
   if (kbIds.length) {
     const { error: kbError } = await supabase.from("knowledge_bases").delete().in("id", kbIds);
