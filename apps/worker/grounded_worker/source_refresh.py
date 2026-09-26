@@ -49,8 +49,24 @@ def refresh(source_id: str) -> None:
 
         digest = sha256(payload).hexdigest()
         if source["last_content_hash"] == digest:
-            conn.execute("update public.source_registry set last_checked_at=now() where id=%s", (source_id,))
-            conn.commit()
+            with conn.transaction():
+                conn.execute("update public.source_registry set last_checked_at=now() where id=%s", (source_id,))
+                conn.execute(
+                    """
+                    update public.documents d
+                    set is_current=true,
+                        status=case
+                          when exists (
+                            select 1 from public.document_versions v
+                            where v.document_id=d.id and v.status='ready'
+                          ) then 'ready'
+                          else d.status
+                        end,
+                        updated_at=now()
+                    where d.source_registry_id=%s
+                    """,
+                    (source_id,),
+                )
             print("No content change")
             return
 
@@ -83,7 +99,7 @@ def refresh(source_id: str) -> None:
                     ).fetchone()["n"]
                     # Do not archive or delete the last ready version. Retrieval continues to use it until this version is ready.
                     conn.execute(
-                        """update public.documents set status='queued',title=%s,mime_type=%s,source_url=%s,publisher=%s,
+                        """update public.documents set status='queued',is_current=true,title=%s,mime_type=%s,source_url=%s,publisher=%s,
                            authority_level=%s,jurisdiction_country=%s,jurisdiction_region=%s,last_verified_at=now() where id=%s""",
                         (
                             source["title"], content_type, final_url, source["publisher"], source["authority_level"],
