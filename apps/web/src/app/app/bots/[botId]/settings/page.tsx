@@ -21,7 +21,11 @@ export default async function BotSettingsPage({ params }: { params: Promise<{ bo
       .in("coverage_status", ["active", "partial"])
       .order("jurisdiction_country", { ascending: true, nullsFirst: true })
       .order("name"),
-    supabase.from("bot_knowledge_bases").select("knowledge_base_id").eq("bot_id", botId),
+    supabase
+      .from("bot_knowledge_bases")
+      .select("knowledge_base_id,knowledge_bases!inner(visibility)")
+      .eq("bot_id", botId)
+      .eq("knowledge_bases.visibility", "public"),
   ]);
   if (!bot) notFound();
 
