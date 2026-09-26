@@ -32,6 +32,17 @@ def _pages(meta: dict[str, Any]) -> list[int]:
     return sorted(result)
 
 
+def _compact_metadata(pages: list[int]) -> dict[str, Any]:
+    # page_start/page_end and heading_path have dedicated indexed columns. Keep JSON
+    # only when the source pages are non-contiguous, which preserves provenance without
+    # duplicating Docling's very large structural payload on every chunk.
+    if len(pages) <= 2:
+        return {}
+    if pages == list(range(pages[0], pages[-1] + 1)):
+        return {}
+    return {"pages": pages}
+
+
 def chunk_document(document: Any, max_tokens: int = 700) -> list[ParsedChunk]:
     encoding = tiktoken.get_encoding("cl100k_base")
     tokenizer = OpenAITokenizer(tokenizer=encoding, max_tokens=max_tokens)
@@ -42,9 +53,9 @@ def chunk_document(document: Any, max_tokens: int = 700) -> list[ParsedChunk]:
         text = (chunk.text or "").strip()
         if not text:
             continue
-        metadata = chunk.meta.export_json_dict() if chunk.meta is not None else {}
-        pages = _pages(metadata)
-        headings = [str(x) for x in (metadata.get("headings") or []) if str(x).strip()]
+        raw_metadata = chunk.meta.export_json_dict() if chunk.meta is not None else {}
+        pages = _pages(raw_metadata)
+        headings = [str(x) for x in (raw_metadata.get("headings") or []) if str(x).strip()]
         embedding_text = chunker.contextualize(chunk).strip() or text
         output.append(
             ParsedChunk(
@@ -56,7 +67,7 @@ def chunk_document(document: Any, max_tokens: int = 700) -> list[ParsedChunk]:
                 page_start=min(pages) if pages else None,
                 page_end=max(pages) if pages else None,
                 headings=headings,
-                metadata=metadata,
+                metadata=_compact_metadata(pages),
             )
         )
     return output
