@@ -4,11 +4,42 @@ import { requireApiUser } from "@/lib/auth";
 import { isTrustedMutation } from "@/lib/security/request";
 
 const createSchema = z.object({ botId: z.string().uuid() });
+const sidebarLimitSchema = z.coerce.number().int().min(1).max(50).catch(20);
 
 export async function GET(req: Request) {
   const { supabase, userId } = await requireApiUser();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const url = new URL(req.url);
+  const scope = url.searchParams.get("scope");
+
+  if (scope === "sidebar") {
+    const limit = sidebarLimitSchema.parse(url.searchParams.get("limit") ?? "20");
+    const cursor = url.searchParams.get("cursor");
+    if (cursor && Number.isNaN(Date.parse(cursor))) {
+      return NextResponse.json({ error: "Invalid conversation cursor" }, { status: 400 });
+    }
+
+    let query = supabase
+      .from("conversations")
+      .select("id,title,last_message_at,archived_at,bot_id")
+      .eq("owner_user_id", userId)
+      .not("last_message_at", "is", null)
+      .order("last_message_at", { ascending: false })
+      .limit(limit + 1);
+
+    if (cursor) query = query.lt("last_message_at", cursor);
+
+    const { data, error } = await query;
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    const rows = data ?? [];
+    return NextResponse.json({
+      items: rows.slice(0, limit),
+      hasMore: rows.length > limit,
+    });
+  }
+
   const botId = url.searchParams.get("botId");
   if (!botId || !z.string().uuid().safeParse(botId).success) {
     return NextResponse.json({ error: "Valid botId is required" }, { status: 400 });

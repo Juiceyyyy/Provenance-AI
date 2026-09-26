@@ -2,6 +2,8 @@ import { Sidebar } from "@/components/app/sidebar";
 import { requireUser } from "@/lib/auth";
 import { ensureBuiltinAssistantKnowledge } from "@/lib/bots/ensure-builtins";
 
+const SIDEBAR_CONVERSATION_PAGE_SIZE = 20;
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { supabase, userId, claims } = await requireUser();
   const { data: profile } = await supabase
@@ -17,14 +19,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   });
 
   const [{ data: assistants }, { data: conversationRows }] = await Promise.all([
-    supabase.from("bots").select("id,name,bot_type").order("name", { ascending: true }).limit(50),
+    supabase.from("bots").select("id,name,bot_type").order("name", { ascending: true }).limit(100),
     supabase
       .from("conversations")
-      .select("id,title,updated_at,last_message_at,archived_at,bot_id")
+      .select("id,title,last_message_at,archived_at,bot_id")
       .eq("owner_user_id", userId)
       .not("last_message_at", "is", null)
       .order("last_message_at", { ascending: false })
-      .limit(50),
+      .limit(SIDEBAR_CONVERSATION_PAGE_SIZE + 1),
   ]);
 
   const assistantList = [...(assistants ?? [])].sort((a, b) => {
@@ -34,7 +36,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     return a.name.localeCompare(b.name);
   });
   const names = new Map(assistantList.map((assistant) => [assistant.id, assistant.name]));
-  const conversations = (conversationRows ?? []).map((conversation) => ({
+  const rawConversations = conversationRows ?? [];
+  const conversations = rawConversations.slice(0, SIDEBAR_CONVERSATION_PAGE_SIZE).map((conversation) => ({
     id: conversation.id,
     title: conversation.title,
     bot_id: conversation.bot_id,
@@ -45,9 +48,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-dvh bg-background lg:flex">
-      <Sidebar assistants={assistantList} conversations={conversations} email={typeof claims.email === "string" ? claims.email : undefined} />
+      <Sidebar
+        assistants={assistantList}
+        conversations={conversations}
+        hasMoreConversations={rawConversations.length > SIDEBAR_CONVERSATION_PAGE_SIZE}
+        email={typeof claims.email === "string" ? claims.email : undefined}
+      />
       <main className="min-w-0 flex-1">
-        <div className="mx-auto w-full max-w-[1560px] px-3 py-3 sm:px-5 sm:py-5 lg:px-7 lg:py-7 xl:px-8">
+        <div className="mx-auto w-full max-w-[1600px] px-2.5 py-2.5 sm:px-4 sm:py-4 lg:px-5 lg:py-5 xl:px-7 xl:py-7 2xl:px-8">
           {children}
         </div>
       </main>
