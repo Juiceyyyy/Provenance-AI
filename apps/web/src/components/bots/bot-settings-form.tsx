@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { BOT_PRESETS, isPresetKey } from "@/lib/bots/presets";
 
 export type EditableBot = {
   id: string;
@@ -52,6 +53,16 @@ export function BotSettingsForm({ bot }: { bot: EditableBot }) {
     }
   }
 
+  function restorePreset() {
+    if (!bot.is_builtin || !isPresetKey(bot.bot_type)) return;
+    const preset = BOT_PRESETS[bot.bot_type];
+    setName(preset.name);
+    setDescription(preset.description);
+    setInstructions("");
+    setWebEnabled(preset.webDefault);
+    toast.message("Preset restored in the form. Your saved location is unchanged; save changes to apply it.");
+  }
+
   async function remove() {
     if (!window.confirm(`Delete ${bot.name}? This also deletes its private uploaded knowledge and conversation history.`)) return;
     setDeleting(true);
@@ -82,6 +93,10 @@ export function BotSettingsForm({ bot }: { bot: EditableBot }) {
           <p className="mt-3 text-xs leading-5 text-[#8e9aab]">
             Provenance provides the core role and safety behavior by default. Your edits below layer on top, so you can rename the assistant, add instructions, change its location and control web access without losing the built-in specialist behavior.
           </p>
+          <Button type="button" variant="secondary" className="mt-4" onClick={restorePreset}>
+            Restore preset defaults
+          </Button>
+          <p className="mt-2 text-[11px] leading-5 text-[#707c8e]">Restores the shipped name, description, extra instructions and web default. Your jurisdiction/location is intentionally preserved.</p>
         </section>
       ) : null}
 
