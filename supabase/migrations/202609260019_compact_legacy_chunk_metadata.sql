@@ -38,4 +38,9 @@ set metadata=compact.metadata
 from compact
 where c.id=compact.id;
 
+-- The update above creates dead heap/TOAST tuples. This table is small during this
+-- one-time migration, so rewrite it immediately to return those bytes to the database
+-- instead of waiting for a future maintenance window. HNSW and other indexes are
+-- rebuilt as part of CLUSTER.
+cluster public.chunks using chunks_pkey;
 analyze public.chunks;
