@@ -137,8 +137,7 @@ alter table public.source_registry
 -- guarantees a future unchanged-source check cannot skip indexing because a failed
 -- duplicate row happened to have a newer hash.
 update public.source_registry s
-set last_content_hash=ready.content_hash
-from lateral (
+set last_content_hash=(
   select v.content_hash
   from public.documents d
   join public.document_versions v on v.document_id=d.id
@@ -148,8 +147,16 @@ from lateral (
     and v.content_hash is not null
   order by v.processed_at desc nulls last,v.version_number desc
   limit 1
-) ready
-where ready.content_hash is distinct from s.last_content_hash;
+)
+where exists (
+  select 1
+  from public.documents d
+  join public.document_versions v on v.document_id=d.id
+  where d.source_registry_id=s.id
+    and d.is_current=true
+    and v.status='ready'
+    and v.content_hash is not null
+);
 
 -- Global source enabled state is derived from enabled pack memberships.
 update public.source_registry s
