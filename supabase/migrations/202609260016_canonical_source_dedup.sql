@@ -2,8 +2,22 @@
 -- A source is fetched/indexed once, then exposed to any number of knowledge packs
 -- through source_knowledge_bases / knowledge_base_documents.
 
+-- The pre-dedup schema stored enablement on the source row because every source
+-- belonged to exactly one pack. Preserve that state when moving enablement to the
+-- many-to-many membership table; defaulting existing rows to true would reactivate
+-- deprecated sources.
 alter table public.source_knowledge_bases
-  add column if not exists enabled boolean not null default true;
+  add column if not exists enabled boolean;
+
+update public.source_knowledge_bases skb
+set enabled=s.enabled
+from public.source_registry s
+where s.id=skb.source_registry_id
+  and skb.enabled is null;
+
+alter table public.source_knowledge_bases
+  alter column enabled set default true,
+  alter column enabled set not null;
 
 create table if not exists private.storage_cleanup_queue (
   storage_path text primary key,
@@ -16,9 +30,9 @@ create table if not exists private.storage_cleanup_queue (
 revoke all on private.storage_cleanup_queue from public,anon,authenticated;
 grant all on private.storage_cleanup_queue to service_role;
 
--- Choose exactly one registry row per canonical URL. Prefer the most recently
--- checked source, then one that has a ready/current document, then the oldest row
--- for deterministic behavior on never-fetched sources.
+-- Choose exactly one registry row per canonical URL. Prefer a source that already
+-- has a successfully indexed current document, then the most recently checked row.
+-- This avoids retaining a newer registry hash that never completed indexing.
 create temporary table source_merge_map on commit drop as
 select s.id as old_source_id, keeper.id as keep_source_id
 from public.source_registry s
@@ -27,14 +41,14 @@ join lateral (
   from public.source_registry candidate
   where candidate.canonical_url=s.canonical_url
   order by
-    (candidate.last_checked_at is not null) desc,
-    candidate.last_checked_at desc nulls last,
     exists (
       select 1
       from public.documents d
       join public.document_versions v on v.document_id=d.id and v.status='ready'
       where d.source_registry_id=candidate.id and d.is_current=true
     ) desc,
+    (candidate.last_checked_at is not null) desc,
+    candidate.last_checked_at desc nulls last,
     candidate.created_at asc,
     candidate.id
   limit 1
@@ -118,6 +132,24 @@ alter table public.source_registry
 -- Canonical URL is now the registry identity independent of pack membership.
 alter table public.source_registry
   add constraint source_registry_canonical_url_key unique(canonical_url);
+
+-- Keep registry hashes aligned with the document that survived deduplication. This
+-- guarantees a future unchanged-source check cannot skip indexing because a failed
+-- duplicate row happened to have a newer hash.
+update public.source_registry s
+set last_content_hash=ready.content_hash
+from lateral (
+  select v.content_hash
+  from public.documents d
+  join public.document_versions v on v.document_id=d.id
+  where d.source_registry_id=s.id
+    and d.is_current=true
+    and v.status='ready'
+    and v.content_hash is not null
+  order by v.processed_at desc nulls last,v.version_number desc
+  limit 1
+) ready
+where ready.content_hash is distinct from s.last_content_hash;
 
 -- Global source enabled state is derived from enabled pack memberships.
 update public.source_registry s
