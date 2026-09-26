@@ -186,7 +186,7 @@ function NavigationContent({
             {onClose ? (
               <button onClick={onClose} aria-label="Close navigation" className="grid size-9 place-items-center rounded-xl text-muted-foreground hover:bg-white/[.045] hover:text-foreground"><X className="size-[18px]" /></button>
             ) : onToggleCollapse ? (
-              <button onClick={onToggleCollapse} aria-label="Collapse sidebar" aria-expanded title="Collapse sidebar" className="grid size-9 place-items-center rounded-xl text-subtle-foreground hover:bg-white/[.045] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus/35">
+              <button onClick={onToggleCollapse} aria-label="Collapse sidebar" aria-expanded={true} title="Collapse sidebar" className="grid size-9 place-items-center rounded-xl text-subtle-foreground hover:bg-white/[.045] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus/35">
                 <PanelLeftClose className="size-[18px]" />
               </button>
             ) : null}
@@ -305,8 +305,11 @@ export function Sidebar({ assistants, conversations, hasMoreConversations = fals
   }, []);
 
   useEffect(() => {
-    setConversationItems(conversations);
-    setHasMore(hasMoreConversations);
+    const frame = window.requestAnimationFrame(() => {
+      setConversationItems(conversations);
+      setHasMore(hasMoreConversations);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [conversations, hasMoreConversations]);
 
   function toggleCollapsed() {
