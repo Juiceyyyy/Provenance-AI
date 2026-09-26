@@ -12,7 +12,9 @@ from typing import Any
 
 import httpx
 import psycopg
-from docling.document_converter import DocumentConverter
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from supabase import Client, create_client
@@ -25,6 +27,19 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 LOG = logging.getLogger("grounded.worker")
 STOP = False
 _EMBEDDING_BATCH_SIZE = 32
+_FAST_TEXT_MIN_CHARS = 1_000
+_MIME_SUFFIXES = {
+    "application/pdf": ".pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    "text/plain": ".txt",
+    "text/markdown": ".md",
+    "text/csv": ".csv",
+    "text/html": ".html",
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+}
 
 
 def _stop(*_: Any) -> None:
@@ -46,7 +61,7 @@ def claim_job(conn: psycopg.Connection[Any], worker_id: str) -> dict[str, Any] |
     with conn.transaction():
         row = conn.execute(
             """
-            select j.id, j.document_version_id, j.attempts, j.max_attempts,
+            select j.id, j.document_version_id, j.attempts, j.max_attempts, j.job_type,
                    v.document_id, v.storage_path, d.knowledge_base_id, d.organization_id,
                    d.title, d.mime_type
             from public.ingestion_jobs j
@@ -154,12 +169,37 @@ def vector_literal(values: list[float]) -> str:
     return "[" + ",".join(f"{value:.9g}" for value in values) + "]"
 
 
+def _suffix_for_job(job: dict[str, Any]) -> str:
+    mime_type = str(job.get("mime_type") or "").split(";", 1)[0].strip().lower()
+    if mime_type in _MIME_SUFFIXES:
+        return _MIME_SUFFIXES[mime_type]
+    return Path(str(job.get("title") or "")).suffix[:12] or ".bin"
+
+
+def _fast_text_is_usable(chunks: list[ParsedChunk]) -> bool:
+    return bool(chunks) and sum(len(chunk.text.strip()) for chunk in chunks) >= _FAST_TEXT_MIN_CHARS
+
+
+def _curated_pdf_converter() -> DocumentConverter:
+    options = PdfPipelineOptions()
+    options.do_ocr = False
+    options.do_table_structure = False
+    options.force_backend_text = True
+    return DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)})
+
+
+def _parse_chunks(path: str, converter: DocumentConverter) -> list[ParsedChunk]:
+    result = converter.convert(path)
+    return chunk_document(result.document)
+
+
 def process_job(
     settings: Settings,
     conn: psycopg.Connection[Any],
     storage: Client,
     ai: httpx.Client,
     converter: DocumentConverter,
+    curated_pdf_converter: DocumentConverter,
     job: dict[str, Any],
 ) -> None:
     storage_path = job.get("storage_path")
@@ -176,14 +216,26 @@ def process_job(
     elif settings.malware_scan_required:
         raise RuntimeError("Malware scanning is required but no ClamAV service is configured")
     binary_hash = sha256(payload).hexdigest()
-    suffix = Path(str(job["title"])).suffix[:12] or ".bin"
+    suffix = _suffix_for_job(job)
+    parser_version = "docling-2.130.0"
 
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as handle:
         handle.write(payload)
         handle.flush()
-        result = converter.convert(handle.name)
-        document = result.document
-        chunks = chunk_document(document)
+
+        is_curated_pdf = job.get("job_type") == "source_refresh" and str(job.get("mime_type")) == "application/pdf"
+        if is_curated_pdf:
+            fast_chunks = _parse_chunks(handle.name, curated_pdf_converter)
+            if _fast_text_is_usable(fast_chunks):
+                chunks = fast_chunks
+                parser_version = "docling-2.130.0-fast-text"
+                LOG.info("Used fast text-layer PDF path for %s", job["title"])
+            else:
+                LOG.info("Fast PDF extraction was sparse for %s; falling back to full parser", job["title"])
+                chunks = _parse_chunks(handle.name, converter)
+        else:
+            chunks = _parse_chunks(handle.name, converter)
+
         if not chunks:
             raise RuntimeError("Parser produced no indexable chunks")
 
@@ -215,7 +267,7 @@ def process_job(
                 processed_at=now(), error_message=null
             where id=%s
             """,
-            (binary_hash, "docling-2.130.0", job["document_version_id"]),
+            (binary_hash, parser_version, job["document_version_id"]),
         )
         conn.execute(
             "update public.documents set status='ready', last_verified_at=coalesce(last_verified_at,now()) where id=%s",
@@ -227,7 +279,7 @@ def process_job(
               error_message=null, metadata=metadata || %s
             where id=%s
             """,
-            (Jsonb({"chunks": len(chunks), "sha256": binary_hash}), job["id"]),
+            (Jsonb({"chunks": len(chunks), "sha256": binary_hash, "parser_version": parser_version}), job["id"]),
         )
     LOG.info("Indexed %s: %d chunks", job["title"], len(chunks))
 
@@ -260,6 +312,7 @@ def run() -> None:
     settings = Settings.from_env()
     storage = create_client(settings.supabase_url, settings.supabase_service_role_key)
     converter = DocumentConverter()
+    curated_pdf_converter = _curated_pdf_converter()
     LOG.info("Worker %s started%s", settings.worker_id, " in one-shot mode" if settings.one_shot else "")
 
     with httpx.Client(timeout=httpx.Timeout(60.0, connect=15.0)) as ai, db(settings) as conn:
@@ -270,7 +323,7 @@ def run() -> None:
                 if not job:
                     break
                 try:
-                    process_job(settings, conn, storage, ai, converter, job)
+                    process_job(settings, conn, storage, ai, converter, curated_pdf_converter, job)
                 except Exception as exc:  # noqa: BLE001 - worker boundary must trap parser/provider failures
                     fail_job(conn, job, exc)
                 processed += 1
