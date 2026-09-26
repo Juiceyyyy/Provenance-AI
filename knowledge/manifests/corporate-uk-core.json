@@ -1,0 +1,32 @@
+{
+  "pack": {
+    "name": "United Kingdom Corporate & Reporting Core",
+    "slug": "corporate-uk-core",
+    "description": "Shared United Kingdom company-law and reporting references used by both Legal and Tax & Accounting assistants. Documents are indexed once and reused across both domains.",
+    "kind": "jurisdiction",
+    "bot_types": ["legal", "accounting"],
+    "domains": ["legal", "accounting"],
+    "coverage_status": "partial",
+    "jurisdiction_country": "United Kingdom",
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "Companies Act 2006",
+      "canonical_url": "https://www.legislation.gov.uk/ukpga/2006/46/contents",
+      "publisher": "The National Archives",
+      "authority_level": "primary",
+      "license_type": "open-government-licence-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "Preparing and filing Companies House accounts",
+      "canonical_url": "https://www.gov.uk/government/publications/life-of-a-company-annual-requirements/life-of-a-company-part-1-accounts",
+      "publisher": "Companies House",
+      "authority_level": "official",
+      "license_type": "open-government-licence-review-required",
+      "refresh_interval_hours": 168
+    }
+  ]
+}
