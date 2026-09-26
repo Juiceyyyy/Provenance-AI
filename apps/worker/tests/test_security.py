@@ -4,7 +4,12 @@ import socket
 
 import pytest
 
-from grounded_worker.security import UnsafeSourceUrl, validate_public_http_url
+from grounded_worker.security import (
+    UnsafeSourceUrl,
+    _browser_compat_allowed,
+    _request_headers,
+    validate_public_http_url,
+)
 
 
 def _addr(ip: str):
@@ -44,3 +49,17 @@ def test_blocks_credentials_and_nonstandard_ports(monkeypatch: pytest.MonkeyPatc
         validate_public_http_url("https://user:password@example.test/file")
     with pytest.raises(UnsafeSourceUrl):
         validate_public_http_url("https://example.test:8443/file")
+
+
+def test_browser_compat_is_limited_to_allowlisted_government_hosts():
+    assert _browser_compat_allowed("https://www.mha.gov.in/file.pdf") is True
+    assert _browser_compat_allowed("https://subdomain.indiacode.nic.in/file.pdf") is True
+    assert _browser_compat_allowed("https://example.com/file.pdf") is False
+    assert _browser_compat_allowed("https://mha.gov.in.attacker.example/file.pdf") is False
+
+
+def test_browser_compat_headers_use_same_origin_referer():
+    headers = _request_headers("https://www.mha.gov.in/sites/default/files/law.pdf", browser_compat=True)
+    assert headers["Referer"] == "https://www.mha.gov.in/"
+    assert headers["Accept-Language"].startswith("en-IN")
+    assert "Mozilla/5.0" in headers["User-Agent"]
