@@ -3,6 +3,7 @@ from __future__ import annotations
 import ipaddress
 import socket
 import struct
+import time
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -17,6 +18,7 @@ class MalwareDetected(RuntimeError):
 
 
 _BROWSER_COMPAT_ROOTS = {
+    # India
     "cbic-gst.gov.in",
     "consumeraffairs.nic.in",
     "egazette.gov.in",
@@ -27,7 +29,21 @@ _BROWSER_COMPAT_ROOTS = {
     "mca.gov.in",
     "meity.gov.in",
     "mha.gov.in",
+    # International / United Nations
+    "un.org",
+    # United States authorities
+    "cdc.gov",
+    "congress.gov",
+    "irs.gov",
+    "sec.gov",
+    "uscode.house.gov",
+    # United Kingdom authorities
+    "gov.uk",
+    "legislation.gov.uk",
+    "nhs.uk",
 }
+_TRANSIENT_STATUSES = {429, 500, 502, 503, 504}
+_MAX_TRANSIENT_ATTEMPTS = 4
 
 
 def _host_is_public(hostname: str) -> bool:
@@ -80,11 +96,21 @@ def _request_headers(url: str, *, browser_compat: bool) -> dict[str, str]:
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"
         ),
         "Accept": "application/pdf,text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-IN,en;q=0.9",
+        "Accept-Language": "en-US,en;q=0.9",
         "Referer": origin,
         "Cache-Control": "no-cache",
         "Pragma": "no-cache",
     }
+
+
+def _retry_delay(response: httpx.Response, attempt: int) -> float:
+    retry_after = response.headers.get("retry-after")
+    if retry_after:
+        try:
+            return min(20.0, max(1.0, float(retry_after)))
+        except ValueError:
+            pass
+    return min(20.0, float(2**attempt))
 
 
 def fetch_public_source(
@@ -98,6 +124,7 @@ def fetch_public_source(
     timeout = httpx.Timeout(timeout_seconds, connect=min(15.0, timeout_seconds))
     redirects = 0
     browser_compat = False
+    transient_attempts = 0
 
     with httpx.Client(follow_redirects=False, timeout=timeout) as client:
         while redirects <= max_redirects:
@@ -111,6 +138,7 @@ def fetch_public_source(
                     current = urljoin(current, location)
                     redirects += 1
                     browser_compat = False
+                    transient_attempts = 0
                     continue
 
                 if (
@@ -119,6 +147,13 @@ def fetch_public_source(
                     and _browser_compat_allowed(current)
                 ):
                     browser_compat = True
+                    transient_attempts = 0
+                    continue
+
+                if response.status_code in _TRANSIENT_STATUSES and transient_attempts < _MAX_TRANSIENT_ATTEMPTS - 1:
+                    delay = _retry_delay(response, transient_attempts)
+                    transient_attempts += 1
+                    time.sleep(delay)
                     continue
 
                 response.raise_for_status()
