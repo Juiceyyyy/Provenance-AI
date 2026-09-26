@@ -43,11 +43,14 @@ export async function POST(req: Request) {
     const messages = validated.data;
 
     await assertUsageAvailable(supabase);
-    const { data: bot, error: botError } = await supabase
-      .from("bots")
-      .select("id,name,bot_type,description,instructions,jurisdiction_country,jurisdiction_region,citations_required,web_enabled,organization_id")
-      .eq("id", parsed.data.botId)
-      .maybeSingle();
+    const [{ data: bot, error: botError }, { data: profile }] = await Promise.all([
+      supabase
+        .from("bots")
+        .select("id,name,bot_type,description,instructions,jurisdiction_country,jurisdiction_region,citations_required,web_enabled,organization_id")
+        .eq("id", parsed.data.botId)
+        .maybeSingle(),
+      supabase.from("profiles").select("global_instructions").eq("id", userId).maybeSingle(),
+    ]);
     if (botError || !bot) return NextResponse.json({ error: "Assistant not found" }, { status: 404 });
 
     const { data: conversation } = await supabase
@@ -61,10 +64,10 @@ export async function POST(req: Request) {
     if (parsed.data.webSearch && !bot.web_enabled) return NextResponse.json({ error: "Web search is disabled for this assistant" }, { status: 403 });
 
     const query = latestUserText(messages);
-    const chunks = query ? await retrieveChunks(supabase, bot.id, query) : [];
+    const chunks = query ? await retrieveChunks(supabase, bot.id, query, conversation.id) : [];
     const ragContext = chunksToContext(chunks);
     const portfolioContext = bot.bot_type === "portfolio" ? await getPortfolioContext(supabase, userId) : undefined;
-    const system = buildSystemPrompt(bot as BotRecord, ragContext, portfolioContext);
+    const system = buildSystemPrompt(bot as BotRecord, ragContext, portfolioContext, profile?.global_instructions);
     const tools = parsed.data.webSearch ? validationTools : undefined;
     const modelHistory = messages.slice(-40);
 
@@ -84,11 +87,7 @@ export async function POST(req: Request) {
       onFinish: async ({ messages: complete, isAborted }) => {
         await supabase.rpc("save_conversation_messages", { p_conversation_id: conversation.id, p_messages: complete });
         let usage: Awaited<typeof result.usage> | undefined;
-        try {
-          usage = await result.usage;
-        } catch {
-          usage = undefined;
-        }
+        try { usage = await result.usage; } catch { usage = undefined; }
         await supabase.from("usage_events").insert({
           user_id: userId,
           organization_id: bot.organization_id,
@@ -96,7 +95,7 @@ export async function POST(req: Request) {
           bot_id: bot.id,
           input_tokens: usage?.inputTokens ?? null,
           output_tokens: usage?.outputTokens ?? null,
-          metadata: { rag_chunks: chunks.length, web_search: parsed.data.webSearch, aborted: isAborted },
+          metadata: { rag_chunks: chunks.length, scoped_retrieval: true, web_search: parsed.data.webSearch, aborted: isAborted },
         });
         await supabase
           .from("conversations")
