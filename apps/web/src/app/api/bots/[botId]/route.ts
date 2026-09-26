@@ -68,10 +68,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ botId:
         .select("id,jurisdiction_region")
         .eq("visibility", "public")
         .eq("kind", "jurisdiction")
-        .eq("jurisdiction_country", nextCountry)
+        .ilike("jurisdiction_country", nextCountry)
         .like("slug", `${existing.bot_type}-%`);
+      const requestedRegion = nextRegion?.toLocaleLowerCase();
       const applicable = (packs ?? []).filter(
-        (pack) => !pack.jurisdiction_region || Boolean(nextRegion && pack.jurisdiction_region === nextRegion),
+        (pack) => !pack.jurisdiction_region || Boolean(requestedRegion && pack.jurisdiction_region.toLocaleLowerCase() === requestedRegion),
       );
       if (applicable.length) {
         await supabase.from("bot_knowledge_bases").upsert(
