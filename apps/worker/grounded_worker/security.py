@@ -30,10 +30,14 @@ _BROWSER_COMPAT_ROOTS = {
     "meity.gov.in",
     "mha.gov.in",
     # International / United Nations
+    "ohchr.org",
+    "treaties.un.org",
     "un.org",
     # United States authorities
+    "archives.gov",
     "cdc.gov",
     "congress.gov",
+    "ecfr.gov",
     "irs.gov",
     "sec.gov",
     "uscode.house.gov",
