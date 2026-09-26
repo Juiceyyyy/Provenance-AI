@@ -27,10 +27,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .limit(50),
     supabase
       .from("conversations")
-      .select("id,title,updated_at,bot_id")
+      .select("id,title,updated_at,last_message_at,archived_at,bot_id")
       .eq("owner_user_id", userId)
-      .order("updated_at", { ascending: false })
-      .limit(30),
+      .not("last_message_at", "is", null)
+      .order("last_message_at", { ascending: false })
+      .limit(50),
   ]);
 
   const assistantList = [...(assistants ?? [])].sort((a, b) => {
@@ -45,6 +46,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     title: conversation.title,
     bot_id: conversation.bot_id,
     bot_name: names.get(conversation.bot_id) ?? "Assistant",
+    archived_at: conversation.archived_at,
+    last_message_at: conversation.last_message_at,
   }));
 
   return (

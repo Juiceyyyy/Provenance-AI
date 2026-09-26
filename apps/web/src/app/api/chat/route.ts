@@ -53,8 +53,6 @@ export async function POST(req: Request) {
     const messages = validated.data;
     const query = latestUserText(messages);
 
-    // Start the only external RAG network request immediately. It now overlaps quota,
-    // assistant/profile and conversation lookups instead of blocking after all of them.
     const embeddingPromise = startQueryEmbedding(query);
     const accessStartedAt = Date.now();
     const [botResult, profileResult, conversationResult] = await Promise.all([
@@ -151,9 +149,15 @@ export async function POST(req: Request) {
             aborted: isAborted,
           },
         });
+        const activityAt = new Date().toISOString();
         await supabase
           .from("conversations")
-          .update({ updated_at: new Date().toISOString(), title: query.slice(0, 80) || "Conversation" })
+          .update({
+            updated_at: activityAt,
+            last_message_at: activityAt,
+            archived_at: null,
+            title: query.slice(0, 80) || "Conversation",
+          })
           .eq("id", conversation.id);
       },
     });

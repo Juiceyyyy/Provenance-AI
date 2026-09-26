@@ -35,7 +35,7 @@
 }
 
 * { border-color: var(--border); }
-html { color-scheme: dark; background: var(--background); }
+html { color-scheme: dark; background: var(--background); scroll-behavior: smooth; }
 html, body { width: 100%; min-height: 100%; overflow-x: hidden; }
 body {
   min-height: 100dvh;
@@ -75,6 +75,10 @@ a { transition: color .18s ease, background-color .18s ease, border-color .18s e
 .prose-ai pre { overflow:auto; padding:1rem; background:#0f141d; border:1px solid #273347; border-radius:.75rem; }
 .prose-ai a { text-decoration: underline; text-underline-offset: 3px; }
 .prose-ai blockquote { border-left:2px solid #5f83c1; padding-left:1rem; color:#b4c0d4; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
 
 @media (max-width: 640px) {
   .prose-ai { font-size: .9375rem; line-height: 1.68; }

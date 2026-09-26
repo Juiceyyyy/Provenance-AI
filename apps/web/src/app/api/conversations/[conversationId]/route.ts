@@ -3,7 +3,10 @@ import { z } from "zod";
 import { requireApiUser } from "@/lib/auth";
 import { isTrustedMutation } from "@/lib/security/request";
 
-const patchSchema = z.object({ title: z.string().trim().min(1).max(120) });
+const patchSchema = z.object({
+  title: z.string().trim().min(1).max(120).optional(),
+  archived: z.boolean().optional(),
+}).refine((value) => value.title !== undefined || value.archived !== undefined, { message: "No conversation changes provided" });
 
 type AttachedDocument = {
   id: string;
@@ -18,13 +21,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ conver
   const { supabase, userId } = await requireApiUser();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const parsed = patchSchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: "Invalid conversation title" }, { status: 400 });
-  const { error } = await supabase
+  if (!parsed.success) return NextResponse.json({ error: "Invalid conversation update" }, { status: 400 });
+
+  const updates: { title?: string; archived_at?: string | null } = {};
+  if (parsed.data.title !== undefined) updates.title = parsed.data.title;
+  if (parsed.data.archived !== undefined) updates.archived_at = parsed.data.archived ? new Date().toISOString() : null;
+
+  const { data, error } = await supabase
     .from("conversations")
-    .update({ title: parsed.data.title })
+    .update(updates)
     .eq("id", conversationId)
-    .eq("owner_user_id", userId);
-  return error ? NextResponse.json({ error: error.message }, { status: 400 }) : NextResponse.json({ ok: true });
+    .eq("owner_user_id", userId)
+    .select("id,title,archived_at")
+    .maybeSingle();
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (!data) return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+  return NextResponse.json(data);
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ conversationId: string }> }) {

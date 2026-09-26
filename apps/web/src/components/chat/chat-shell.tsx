@@ -5,10 +5,23 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { FileText, Globe2, Loader2, MessageSquarePlus, Paperclip, Send, Settings2, Sparkles, X } from "lucide-react";
+import {
+  ArrowUp,
+  Check,
+  Copy,
+  FileText,
+  Globe2,
+  Loader2,
+  MessageSquarePlus,
+  Paperclip,
+  Pencil,
+  Settings2,
+  Sparkles,
+  Square,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase/client";
 
@@ -28,6 +41,13 @@ type ConversationAttachment = {
   status: string;
   mimeType: string;
 };
+
+function messageText(message: UIMessage) {
+  return message.parts
+    .filter((part): part is Extract<UIMessage["parts"][number], { type: "text" }> => part.type === "text")
+    .map((part) => part.text)
+    .join("\n");
+}
 
 export function ChatShell({
   bot,
@@ -54,10 +74,13 @@ export function ChatShell({
   const [attachments, setAttachments] = useState(initialAttachments);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [savingMessageId, setSavingMessageId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat" }), []);
-  const { messages, sendMessage, status, error, stop } = useChat({ id: conversationId, messages: initialMessages, transport });
+  const { messages, setMessages, sendMessage, status, error, stop } = useChat({ id: conversationId, messages: initialMessages, transport });
   const busy = status === "streaming" || status === "submitted";
   const emptyConversation = messages.length === 0;
   const indexing = attachments.some((item) => item.status === "queued" || item.status === "processing");
@@ -88,6 +111,52 @@ export function ChatShell({
     if (!value || busy) return;
     setInput("");
     await sendMessage({ text: value }, { body: { botId: bot.id, conversationId, webSearch: web } });
+    router.refresh();
+  }
+
+  async function copyMessage(message: UIMessage) {
+    const text = messageText(message).trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Message copied");
+    } catch {
+      toast.error("Could not copy message");
+    }
+  }
+
+  function beginEdit(message: UIMessage) {
+    if (busy || message.role !== "user") return;
+    setEditingMessageId(message.id);
+    setEditText(messageText(message));
+  }
+
+  async function saveEdit(messageId: string) {
+    const value = editText.trim();
+    if (!value || savingMessageId) return;
+    setSavingMessageId(messageId);
+    try {
+      const response = await fetch(`/api/messages/${encodeURIComponent(messageId)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: value }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Could not edit message");
+      setMessages((current) => current.map((message) => (
+        message.id === messageId
+          ? { ...message, parts: body.parts as UIMessage["parts"] }
+          : message
+      )));
+      setEditingMessageId(null);
+      setEditText("");
+      router.refresh();
+      toast.success("Message updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not edit message");
+    } finally {
+      setSavingMessageId(null);
+    }
   }
 
   async function uploadOne(file: File) {
@@ -181,10 +250,10 @@ export function ChatShell({
               <Switch checked={web} onCheckedChange={setWeb} />
             </div>
           ) : null}
-          <button type="button" aria-label="New chat" onClick={newChat} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.06] hover:text-foreground">
+          <button type="button" aria-label="New chat" title="New chat" onClick={newChat} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.06] hover:text-foreground">
             <MessageSquarePlus className="size-4" />
           </button>
-          <Link aria-label="Assistant settings" href={`/app/bots/${bot.id}/settings`} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.06] hover:text-foreground">
+          <Link aria-label="Assistant settings" title="Assistant settings" href={`/app/bots/${bot.id}/settings`} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.06] hover:text-foreground">
             <Settings2 className="size-4" />
           </Link>
         </div>
@@ -202,17 +271,90 @@ export function ChatShell({
             </div>
           ) : null}
 
-          {messages.map((message) => (
-            <Message from={message.role} key={message.id}>
-              <MessageContent className={message.role === "user" ? "max-w-[88%] rounded-2xl bg-[#eaf1fc] px-3.5 py-2.5 text-sm text-[#102038] sm:max-w-[78%] sm:px-4 sm:py-3" : "w-full text-sm"}>
-                {message.parts.map((part, index) => {
-                  if (part.type === "text") return message.role === "assistant" ? <MessageResponse key={index}>{part.text}</MessageResponse> : <div key={index} className="whitespace-pre-wrap">{part.text}</div>;
-                  if (part.type === "source-url") return <a key={index} href={part.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex max-w-full truncate rounded-full border px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground">{part.title || part.url}</a>;
-                  return null;
-                })}
-              </MessageContent>
-            </Message>
-          ))}
+          {messages.map((message) => {
+            const editing = editingMessageId === message.id && message.role === "user";
+            const text = messageText(message);
+            return (
+              <Message from={message.role} key={message.id}>
+                <MessageContent className={message.role === "user" ? "max-w-[88%] rounded-2xl bg-[#eaf1fc] px-3.5 py-2.5 text-sm text-[#102038] sm:max-w-[78%] sm:px-4 sm:py-3" : "w-full text-sm"}>
+                  {editing ? (
+                    <div className="min-w-[min(70vw,22rem)] sm:min-w-80">
+                      <textarea
+                        autoFocus
+                        value={editText}
+                        onChange={(event) => setEditText(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            setEditingMessageId(null);
+                            setEditText("");
+                          }
+                          if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault();
+                            void saveEdit(message.id);
+                          }
+                        }}
+                        rows={Math.min(8, Math.max(2, editText.split("\n").length))}
+                        className="max-h-48 w-full resize-none bg-transparent text-sm leading-6 text-[#102038] outline-none"
+                      />
+                      <div className="mt-2 flex justify-end gap-1.5">
+                        <button
+                          type="button"
+                          aria-label="Cancel edit"
+                          title="Cancel"
+                          onClick={() => { setEditingMessageId(null); setEditText(""); }}
+                          className="grid size-7 place-items-center rounded-full bg-[#d9e3f1] text-[#44546b] transition hover:bg-[#cedbea]"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Save message edit"
+                          title="Save"
+                          disabled={!editText.trim() || savingMessageId === message.id}
+                          onClick={() => void saveEdit(message.id)}
+                          className="grid size-7 place-items-center rounded-full bg-[#3b82f6] text-white transition hover:bg-[#2f75e8] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {savingMessageId === message.id ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    message.parts.map((part, index) => {
+                      if (part.type === "text") return message.role === "assistant" ? <MessageResponse key={index}>{part.text}</MessageResponse> : <div key={index} className="whitespace-pre-wrap">{part.text}</div>;
+                      if (part.type === "source-url") return <a key={index} href={part.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex max-w-full truncate rounded-full border px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground">{part.title || part.url}</a>;
+                      return null;
+                    })
+                  )}
+                </MessageContent>
+
+                {!editing && text.trim() ? (
+                  <div className={`flex items-center gap-0.5 px-1 text-[#738095] transition-opacity sm:opacity-0 sm:group-hover:opacity-100 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                    {message.role === "user" ? (
+                      <button
+                        type="button"
+                        aria-label="Edit message"
+                        title="Edit message"
+                        disabled={busy}
+                        onClick={() => beginEdit(message)}
+                        className="grid size-7 place-items-center rounded-md transition hover:bg-white/[.055] hover:text-foreground disabled:opacity-40"
+                      >
+                        <Pencil className="size-3.5" />
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      aria-label="Copy message"
+                      title="Copy message"
+                      onClick={() => void copyMessage(message)}
+                      className="grid size-7 place-items-center rounded-md transition hover:bg-white/[.055] hover:text-foreground"
+                    >
+                      <Copy className="size-3.5" />
+                    </button>
+                  </div>
+                ) : null}
+              </Message>
+            );
+          })}
 
           {status === "submitted" ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="size-3.5 animate-spin" />Retrieving relevant sources…</div>
@@ -269,13 +411,29 @@ export function ChatShell({
               className="max-h-36 min-h-12 w-full resize-none bg-transparent px-2.5 py-2.5 text-[16px] leading-6 outline-none placeholder:text-[#6f7a8b] sm:text-sm"
             />
             <div className="flex items-center justify-between px-0.5">
-              <button type="button" aria-label="Attach files to this conversation" disabled={uploading} onClick={() => fileInputRef.current?.click()} className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.06] hover:text-foreground disabled:opacity-50">
+              <button type="button" aria-label="Attach files to this conversation" title="Attach files" disabled={uploading} onClick={() => fileInputRef.current?.click()} className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-white/[.06] hover:text-foreground disabled:opacity-50">
                 {uploading ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
               </button>
               {busy ? (
-                <Button type="button" size="sm" variant="outline" onClick={() => stop()}>Stop</Button>
+                <button
+                  type="button"
+                  aria-label="Stop generating"
+                  title="Stop generating"
+                  onClick={() => stop()}
+                  className="grid size-9 place-items-center rounded-full bg-[#3b82f6] text-white shadow-[0_8px_20px_rgba(59,130,246,.24)] transition hover:bg-[#4b90fb]"
+                >
+                  <Square className="size-3.5 fill-current" />
+                </button>
               ) : (
-                <Button type="submit" size="sm" disabled={!input.trim()} className="rounded-xl px-3"><Send className="size-3.5" /><span className="hidden sm:inline">Send</span></Button>
+                <button
+                  type="submit"
+                  aria-label="Send message"
+                  title="Send message"
+                  disabled={!input.trim()}
+                  className="grid size-9 place-items-center rounded-full bg-[#3b82f6] text-white shadow-[0_8px_20px_rgba(59,130,246,.24)] transition hover:bg-[#4b90fb] disabled:cursor-not-allowed disabled:bg-[#233651] disabled:text-[#73849d] disabled:shadow-none"
+                >
+                  <ArrowUp className="size-[17px]" />
+                </button>
               )}
             </div>
           </form>

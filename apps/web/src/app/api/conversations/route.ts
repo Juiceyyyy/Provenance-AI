@@ -15,10 +15,12 @@ export async function GET(req: Request) {
   }
   const { data, error } = await supabase
     .from("conversations")
-    .select("id,title,updated_at")
+    .select("id,title,updated_at,last_message_at")
     .eq("bot_id", botId)
     .eq("owner_user_id", userId)
-    .order("updated_at", { ascending: false })
+    .is("archived_at", null)
+    .not("last_message_at", "is", null)
+    .order("last_message_at", { ascending: false })
     .limit(100);
   return error ? NextResponse.json({ error: error.message }, { status: 400 }) : NextResponse.json(data ?? []);
 }
@@ -40,7 +42,7 @@ export async function POST(req: Request) {
   const { data, error } = await supabase
     .from("conversations")
     .insert({ organization_id: bot.organization_id, bot_id: bot.id, owner_user_id: userId, title: "New conversation" })
-    .select("id,title,updated_at")
+    .select("id,title,updated_at,last_message_at")
     .single();
   if (error || !data) return NextResponse.json({ error: error?.message || "Could not create conversation" }, { status: 400 });
   return NextResponse.json(data, { status: 201 });

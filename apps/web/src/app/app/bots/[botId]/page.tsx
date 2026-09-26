@@ -17,19 +17,23 @@ export default async function BotChatPage({ params, searchParams }: { params: Pr
 
   const { data: conversationRows } = await supabase
     .from("conversations")
-    .select("id,title,updated_at")
+    .select("id,title,updated_at,created_at,last_message_at,archived_at")
     .eq("bot_id", botId)
     .eq("owner_user_id", userId)
     .order("updated_at", { ascending: false })
     .limit(100);
   let conversations = conversationRows ?? [];
 
-  let conversation = requestedConversationId ? conversations.find((item) => item.id === requestedConversationId) : conversations[0];
+  const requested = requestedConversationId ? conversations.find((item) => item.id === requestedConversationId) : undefined;
+  const activeStarted = conversations.filter((item) => !item.archived_at && item.last_message_at);
+  const activeEmpty = conversations.filter((item) => !item.archived_at && !item.last_message_at);
+  let conversation = requested ?? activeStarted[0] ?? activeEmpty[0];
+
   if (!conversation) {
     const { data, error } = await supabase
       .from("conversations")
       .insert({ organization_id: bot.organization_id, bot_id: botId, owner_user_id: userId, title: "New conversation" })
-      .select("id,title,updated_at")
+      .select("id,title,updated_at,created_at,last_message_at,archived_at")
       .single();
     if (error || !data) throw new Error("Could not create conversation");
     conversation = data;
