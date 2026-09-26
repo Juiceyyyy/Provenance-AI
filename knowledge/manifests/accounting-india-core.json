@@ -2,7 +2,7 @@
   "pack": {
     "name": "India Tax & Corporate Reporting Core",
     "slug": "accounting-india-core",
-    "description": "Official India tax, GST and corporate-reporting sources plus current ICAI Ind AS reference material. This is a maintained core pack and intentionally does not claim exhaustive tax or accounting-standard coverage.",
+    "description": "Official India tax, GST, company-law and Ind AS Gazette sources plus current ICAI reference indexes. This is a maintained core pack and intentionally does not claim exhaustive tax or accounting-standard coverage.",
     "kind": "jurisdiction",
     "bot_types": ["accounting"],
     "jurisdiction_country": "India",
@@ -44,11 +44,43 @@
     },
     {
       "title": "Companies Act, 2013",
-      "canonical_url": "https://www.indiacode.nic.in/bitstream/123456789/2114/5/A2013-18.pdf",
+      "canonical_url": "https://www.indiacode.nic.in/bitstream/123456789/15198/1/the_companies_act%2C_2013_no._18_of_2013_date_29.08.2013.pdf",
       "publisher": "India Code, Legislative Department, Government of India",
       "authority_level": "official",
       "license_type": "official-government-source-review-required",
       "refresh_interval_hours": 168
+    },
+    {
+      "title": "Companies (Indian Accounting Standards) Rules, 2015 - Gazette reproduction",
+      "canonical_url": "https://thc.nic.in/Central%20Governmental%20Rules/Companies%20%28Indian%20Accounting%20Standards%29%20Rules%2C2015.pdf",
+      "publisher": "Gazette of India reproduction hosted by Tripura High Court / National Informatics Centre",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 720
+    },
+    {
+      "title": "Companies (Indian Accounting Standards) Amendment Rules, 2025 - G.S.R. 291(E)",
+      "canonical_url": "https://egazette.gov.in/WriteReadData/2025/262959.pdf",
+      "publisher": "Ministry of Corporate Affairs, Gazette of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 720
+    },
+    {
+      "title": "Companies (Indian Accounting Standards) Second Amendment Rules, 2025 - G.S.R. 549(E)",
+      "canonical_url": "https://egazette.gov.in/WriteReadData/2025/265510.pdf",
+      "publisher": "Ministry of Corporate Affairs, Gazette of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 720
+    },
+    {
+      "title": "Companies (Indian Accounting Standards) Amendment Rules, 2026 - G.S.R. 725(E)",
+      "canonical_url": "https://egazette.gov.in/WriteReadData/2026/275402.pdf",
+      "publisher": "Ministry of Corporate Affairs, Gazette of India",
+      "authority_level": "official",
+      "license_type": "official-government-source-review-required",
+      "refresh_interval_hours": 720
     },
     {
       "title": "Compendium of Indian Accounting Standards 2025-2026 - Volume I (Ind AS 101-117)",
