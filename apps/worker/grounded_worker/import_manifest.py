@@ -11,6 +11,7 @@ from .config import Settings
 
 _ALLOWED_KINDS = {"curated", "jurisdiction", "system"}
 _ALLOWED_BOT_TYPES = {"general", "study", "legal", "accounting", "health", "portfolio"}
+_ALLOWED_COVERAGE = {"active", "partial", "planned", "deprecated"}
 
 
 def import_manifest(path: str) -> None:
@@ -21,6 +22,13 @@ def import_manifest(path: str) -> None:
         raise ValueError(f"Unsupported public knowledge-pack kind: {kind}")
 
     domain = str(pack["slug"]).split("-", 1)[0]
+    domains = [str(item) for item in pack.get("domains", [])]
+    if not domains and domain in _ALLOWED_BOT_TYPES:
+        domains = [domain]
+    coverage_status = str(pack.get("coverage_status", "active"))
+    if coverage_status not in _ALLOWED_COVERAGE:
+        raise ValueError(f"Unsupported coverage status: {coverage_status}")
+
     bot_types = [str(item) for item in pack.get("bot_types", [])]
     if not bot_types and domain in _ALLOWED_BOT_TYPES:
         bot_types = [domain]
@@ -36,9 +44,10 @@ def import_manifest(path: str) -> None:
         kb = conn.execute(
             """
             insert into public.knowledge_bases(
-              name,slug,description,kind,visibility,jurisdiction_country,jurisdiction_region,version,last_verified_at
+              name,slug,description,kind,visibility,jurisdiction_country,jurisdiction_region,
+              version,last_verified_at,domains,coverage_status
             )
-            values(%s,%s,%s,%s,'public',%s,%s,%s,now())
+            values(%s,%s,%s,%s,'public',%s,%s,%s,now(),%s,%s)
             on conflict(slug) do update set
               name=excluded.name,
               description=excluded.description,
@@ -46,6 +55,8 @@ def import_manifest(path: str) -> None:
               jurisdiction_country=excluded.jurisdiction_country,
               jurisdiction_region=excluded.jurisdiction_region,
               version=excluded.version,
+              domains=excluded.domains,
+              coverage_status=excluded.coverage_status,
               last_verified_at=now()
             returning id
             """,
@@ -57,19 +68,15 @@ def import_manifest(path: str) -> None:
                 pack.get("jurisdiction_country"),
                 pack.get("jurisdiction_region"),
                 pack.get("version"),
+                domains,
+                coverage_status,
             ),
         ).fetchone()
 
-        # Treat the manifest as the authoritative active-source set for this pack.
-        # Old URLs remain in the registry for audit/history, while documents sourced
-        # from retired URLs are made non-current so retrieval cannot surface them.
-        conn.execute(
-            "update public.source_registry set enabled=false where knowledge_base_id=%s",
-            (kb["id"],),
-        )
+        conn.execute("update public.source_registry set enabled=false where knowledge_base_id=%s", (kb["id"],))
 
         for source in sources:
-            conn.execute(
+            source_row = conn.execute(
                 """
                 insert into public.source_registry(
                   knowledge_base_id,title,canonical_url,publisher,authority_level,
@@ -85,6 +92,7 @@ def import_manifest(path: str) -> None:
                   license_type=excluded.license_type,
                   refresh_interval_hours=excluded.refresh_interval_hours,
                   enabled=true
+                returning id
                 """,
                 (
                     kb["id"],
@@ -97,6 +105,41 @@ def import_manifest(path: str) -> None:
                     source.get("license_type"),
                     source.get("refresh_interval_hours", 24),
                 ),
+            ).fetchone()
+
+            target_slugs = [str(item) for item in source.get("pack_slugs", [])]
+            target_ids = [kb["id"]]
+            if target_slugs:
+                rows = conn.execute(
+                    "select id,slug from public.knowledge_bases where slug = any(%s)",
+                    (target_slugs,),
+                ).fetchall()
+                found = {row["slug"] for row in rows}
+                missing = [slug for slug in target_slugs if slug not in found]
+                if missing:
+                    raise ValueError(f"Source {source['title']} references unknown pack slugs: {', '.join(missing)}")
+                target_ids.extend(row["id"] for row in rows)
+
+            for target_id in dict.fromkeys(target_ids):
+                conn.execute(
+                    """
+                    insert into public.source_knowledge_bases(source_registry_id,knowledge_base_id,priority)
+                    values(%s,%s,%s)
+                    on conflict(source_registry_id,knowledge_base_id) do update set priority=excluded.priority
+                    """,
+                    (source_row["id"], target_id, int(source.get("priority", 50))),
+                )
+
+            conn.execute(
+                """
+                insert into public.knowledge_base_documents(knowledge_base_id,document_id,priority)
+                select sk.knowledge_base_id,d.id,sk.priority
+                from public.source_knowledge_bases sk
+                join public.documents d on d.source_registry_id=sk.source_registry_id
+                where sk.source_registry_id=%s and d.is_current=true
+                on conflict(knowledge_base_id,document_id) do update set priority=excluded.priority
+                """,
+                (source_row["id"],),
             )
 
         if active_urls:
