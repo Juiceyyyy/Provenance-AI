@@ -1,16 +1,18 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { FileUp, Loader2 } from "lucide-react";
+import { FileUp, Loader2, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 
 export function DocumentUpload({ bots }: { bots: Array<{ id: string; name: string }> }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [botId, setBotId] = useState(bots[0]?.id || "");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
+  const [dragging, setDragging] = useState(false);
 
   async function uploadOne(file: File) {
     const prep = await fetch("/api/documents/upload-url", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ botId, filename: file.name, mimeType: file.type || "text/plain", size: file.size }) });
@@ -25,46 +27,49 @@ export function DocumentUpload({ bots }: { bots: Array<{ id: string; name: strin
   }
 
   async function upload(files: File[]) {
-    if (!botId) { toast.error("Create an assistant first."); return; }
-    if (!files.length) return;
+    if (!botId) { toast.error("Select an assistant first."); return; }
+    if (!files.length || busy) return;
     setBusy(true);
     let succeeded = 0;
     const failures: string[] = [];
     try {
       for (let index = 0; index < files.length; index++) {
-        setProgress(`${index + 1}/${files.length}`);
-        try { await uploadOne(files[index]); succeeded++; } catch (error) { failures.push(error instanceof Error ? error.message : `${files[index].name}: failed`); }
+        setProgress(`${index + 1} of ${files.length}`);
+        try { await uploadOne(files[index]); succeeded += 1; }
+        catch (error) { failures.push(error instanceof Error ? error.message : `${files[index].name}: failed`); }
       }
-      if (succeeded) toast.success(`${succeeded} document${succeeded === 1 ? "" : "s"} uploaded and queued for indexing`);
+      if (succeeded) toast.success(`${succeeded} document${succeeded === 1 ? "" : "s"} queued for indexing`);
       if (failures.length) toast.error(failures.slice(0, 3).join(" · ") + (failures.length > 3 ? ` · +${failures.length - 3} more` : ""));
       if (succeeded) location.reload();
     } finally {
-      setBusy(false);
-      setProgress("");
-      if (inputRef.current) inputRef.current.value = "";
+      setBusy(false); setProgress(""); setDragging(false); if (inputRef.current) inputRef.current.value = "";
     }
   }
 
   return (
-    <div>
-      <div className="mb-4">
-        <h2 className="text-sm font-medium text-[#e2e8f1]">Add documents</h2>
-        <p className="mt-1 text-xs leading-5 text-[#818d9e]">Choose which assistant can retrieve from these files.</p>
+    <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-stretch">
+      <div>
+        <label className="field-label" htmlFor="knowledge-assistant">Attach to assistant</label>
+        <Select id="knowledge-assistant" value={botId} onChange={(event) => setBotId(event.target.value)}>
+          <option value="" disabled>Select assistant</option>
+          {bots.map((bot) => <option key={bot.id} value={bot.id}>{bot.name}</option>)}
+        </Select>
+        <p className="helper-text mt-2">Only this assistant can retrieve from files added here. Use Global Knowledge in Settings for cross-assistant context.</p>
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <div className="flex-1">
-          <label className="mb-1.5 block text-xs text-[#8d98a8]">Assistant</label>
-          <select value={botId} onChange={(event) => setBotId(event.target.value)} className="h-10 w-full rounded-lg border border-white/[.09] bg-[#10151d] px-3 text-sm text-[#e1e7ef] outline-none transition focus:border-[#42679f]">
-            <option value="" disabled>Select assistant</option>
-            {bots.map((bot) => <option key={bot.id} value={bot.id}>{bot.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <input ref={inputRef} type="file" multiple className="hidden" accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.csv,.html,.png,.jpg,.jpeg" onChange={(event) => upload(Array.from(event.target.files || []))} />
-          <Button type="button" className="w-full sm:w-auto" disabled={busy || !botId} onClick={() => inputRef.current?.click()}>{busy ? <Loader2 className="size-4 animate-spin" /> : <FileUp className="size-4" />}{busy ? `Uploading ${progress}…` : "Upload documents"}</Button>
-        </div>
+
+      <div
+        onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
+        onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+        onDragLeave={(event) => { event.preventDefault(); if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
+        onDrop={(event) => { event.preventDefault(); setDragging(false); void upload(Array.from(event.dataTransfer.files || [])); }}
+        className={`flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed px-5 py-6 text-center transition ${dragging ? "border-primary/60 bg-primary/[.05]" : "border-border-strong bg-surface-soft"}`}
+      >
+        <input ref={inputRef} type="file" multiple className="hidden" accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.csv,.html,.png,.jpg,.jpeg" onChange={(event) => void upload(Array.from(event.target.files || []))} />
+        <span className="grid size-9 place-items-center rounded-lg border border-border bg-surface-raised text-muted-foreground">{busy ? <Loader2 className="size-4 animate-spin" /> : <UploadCloud className="size-4" />}</span>
+        <p className="mt-3 text-sm font-medium text-foreground">{busy ? `Uploading ${progress}` : dragging ? "Drop files to upload" : "Drop files here or choose from your device"}</p>
+        <p className="mt-1 max-w-lg text-[11px] leading-5 text-subtle-foreground">PDF, Office files, text, CSV, HTML and images · up to 50 MB each</p>
+        <Button type="button" size="sm" variant="secondary" className="mt-3" disabled={busy || !botId} onClick={() => inputRef.current?.click()}>{busy ? <Loader2 className="size-3.5 animate-spin" /> : <FileUp className="size-3.5" />}{busy ? "Uploading…" : "Choose files"}</Button>
       </div>
-      <p className="mt-3 text-[11px] leading-5 text-[#707c8e]">PDF, DOCX, PPTX, XLSX, TXT, Markdown, CSV, HTML and images up to 50 MB each. Raw files are temporary; the private indexed knowledge remains available to the selected assistant.</p>
     </div>
   );
 }

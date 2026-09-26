@@ -13,18 +13,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   await ensureBuiltinAssistantKnowledge({
     supabase,
     userId,
-    jurisdiction: {
-      country: profile?.default_country || null,
-      region: profile?.default_region || null,
-    },
+    jurisdiction: { country: profile?.default_country || null, region: profile?.default_region || null },
   });
 
   const [{ data: assistants }, { data: conversationRows }] = await Promise.all([
-    supabase
-      .from("bots")
-      .select("id,name,bot_type")
-      .order("name", { ascending: true })
-      .limit(50),
+    supabase.from("bots").select("id,name,bot_type").order("name", { ascending: true }).limit(50),
     supabase
       .from("conversations")
       .select("id,title,updated_at,last_message_at,archived_at,bot_id")
@@ -51,14 +44,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }));
 
   return (
-    <div className="min-h-dvh lg:flex">
-      <Sidebar
-        assistants={assistantList}
-        conversations={conversations}
-        email={typeof claims.email === "string" ? claims.email : undefined}
-      />
+    <div className="min-h-dvh bg-background lg:flex">
+      <Sidebar assistants={assistantList} conversations={conversations} email={typeof claims.email === "string" ? claims.email : undefined} />
       <main className="min-w-0 flex-1">
-        <div className="mx-auto w-full max-w-[1480px] px-3 py-3 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+        <div className="mx-auto w-full max-w-[1560px] px-3 py-3 sm:px-5 sm:py-5 lg:px-7 lg:py-7 xl:px-8">
           {children}
         </div>
       </main>
