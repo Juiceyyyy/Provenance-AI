@@ -346,7 +346,10 @@ export function Sidebar({ assistants, conversations, email }: { assistants: Assi
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
-    setCollapsed(window.localStorage.getItem("provenance-sidebar-collapsed") === "1");
+    const frame = window.requestAnimationFrame(() => {
+      setCollapsed(window.localStorage.getItem("provenance-sidebar-collapsed") === "1");
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   function toggleCollapsed() {
