@@ -42,37 +42,51 @@ alter table public.knowledge_bases add column if not exists domains text[] not n
 alter table public.knowledge_bases add column if not exists coverage_status text not null default 'active'
   check (coverage_status in ('active','partial','planned','deprecated'));
 
--- RLS for relation tables.
 alter table public.knowledge_base_documents enable row level security;
 alter table public.source_knowledge_bases enable row level security;
 alter table public.conversation_documents enable row level security;
+
+-- Since May 2026 new public tables may not be exposed through the Data API automatically.
+grant select,insert,delete on public.knowledge_base_documents to authenticated;
+grant all on public.knowledge_base_documents to service_role;
+grant select on public.source_knowledge_bases to authenticated;
+grant all on public.source_knowledge_bases to service_role;
+grant select,insert,delete on public.conversation_documents to authenticated;
+grant all on public.conversation_documents to service_role;
 
 drop policy if exists kbd_select_accessible on public.knowledge_base_documents;
 create policy kbd_select_accessible on public.knowledge_base_documents for select to authenticated using (
   exists (select 1 from public.knowledge_bases kb where kb.id=knowledge_base_id)
 );
 drop policy if exists kbd_insert_private on public.knowledge_base_documents;
-create policy kbd_insert_private on public.knowledge_base_documents for insert to authenticated with check (
+drop policy if exists kbd_insert_owned_private on public.knowledge_base_documents;
+create policy kbd_insert_owned_private on public.knowledge_base_documents for insert to authenticated with check (
   exists (
     select 1 from public.knowledge_bases kb
-    join public.documents d on d.id=document_id
     where kb.id=knowledge_base_id
+      and kb.visibility='private'
+      and kb.owner_user_id=(select auth.uid())
       and kb.organization_id is not null
-      and kb.organization_id=d.organization_id
       and private.is_org_member(kb.organization_id)
+  )
+  and exists (
+    select 1 from public.documents d
+    where d.id=document_id
       and d.owner_user_id=(select auth.uid())
+      and d.organization_id is not null
+      and private.is_org_member(d.organization_id)
   )
 );
 drop policy if exists kbd_delete_private on public.knowledge_base_documents;
-create policy kbd_delete_private on public.knowledge_base_documents for delete to authenticated using (
+drop policy if exists kbd_delete_owned_private on public.knowledge_base_documents;
+create policy kbd_delete_owned_private on public.knowledge_base_documents for delete to authenticated using (
   exists (
     select 1 from public.knowledge_bases kb
-    join public.documents d on d.id=document_id
     where kb.id=knowledge_base_id
-      and kb.organization_id is not null
-      and kb.organization_id=d.organization_id
-      and (d.owner_user_id=(select auth.uid()) or private.is_org_admin(kb.organization_id))
+      and kb.visibility='private'
+      and kb.owner_user_id=(select auth.uid())
   )
+  and exists (select 1 from public.documents d where d.id=document_id and d.owner_user_id=(select auth.uid()))
 );
 
 drop policy if exists skb_select_accessible on public.source_knowledge_bases;
@@ -173,7 +187,7 @@ with caller as (
   join public.conversations c on c.id=p_conversation_id and c.bot_id=x.bot_id and c.owner_user_id=x.owner_user_id
   join public.conversation_documents cd on cd.conversation_id=c.id
 ), eligible_documents as (
-  select document_id,max(priority) priority from eligible_raw group by document_id
+  select document_id,max(priority)::integer priority from eligible_raw group by document_id
 ), permitted as (
   select c.*,ed.priority,d.title document_title,d.source_url,d.publisher,d.authority_level,d.effective_from,d.effective_until
   from eligible_documents ed
