@@ -73,7 +73,9 @@ def refresh(source_id: str) -> None:
                     select sk.knowledge_base_id,d.id,sk.priority
                     from public.source_knowledge_bases sk
                     join public.documents d on d.source_registry_id=sk.source_registry_id
-                    where sk.source_registry_id=%s and d.is_current=true
+                    where sk.source_registry_id=%s
+                      and coalesce((to_jsonb(sk)->>'enabled')::boolean,true)
+                      and d.is_current=true
                     on conflict(knowledge_base_id,document_id) do update set priority=excluded.priority
                     """,
                     (source_id,),
@@ -134,6 +136,7 @@ def refresh(source_id: str) -> None:
                     select sk.knowledge_base_id,%s,sk.priority
                     from public.source_knowledge_bases sk
                     where sk.source_registry_id=%s
+                      and coalesce((to_jsonb(sk)->>'enabled')::boolean,true)
                     on conflict(knowledge_base_id,document_id) do update set priority=excluded.priority
                     """,
                     (document_id, source_id),
