@@ -19,7 +19,7 @@ export function DocumentUpload({ bots }: { bots: Array<{ id: string; name: strin
     const supabase = createClient();
     const { error } = await supabase.storage.from("documents").uploadToSignedUrl(info.path, info.token, file, { contentType: file.type || "application/octet-stream" });
     if (error) throw new Error(`${file.name}: ${error.message}`);
-    const finalize = await fetch("/api/documents", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ botId, knowledgeBaseId: info.knowledgeBaseId, path: info.path, filename: file.name, mimeType: file.type || "text/plain", size: file.size }) });
+    const finalize = await fetch("/api/documents", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ botId, knowledgeBaseId: info.knowledgeBaseId, reservationId: info.reservationId, path: info.path, filename: file.name, mimeType: file.type || "text/plain", size: file.size }) });
     const body = await finalize.json();
     if (!finalize.ok) throw new Error(`${file.name}: ${body.error || "Could not enqueue document"}`);
   }
@@ -64,7 +64,7 @@ export function DocumentUpload({ bots }: { bots: Array<{ id: string; name: strin
           <Button type="button" className="w-full sm:w-auto" disabled={busy || !botId} onClick={() => inputRef.current?.click()}>{busy ? <Loader2 className="size-4 animate-spin" /> : <FileUp className="size-4" />}{busy ? `Uploading ${progress}…` : "Upload documents"}</Button>
         </div>
       </div>
-      <p className="mt-3 text-[11px] leading-5 text-[#707c8e]">PDF, DOCX, PPTX, XLSX, TXT, Markdown, CSV, HTML and images up to 50 MB each. Files remain private to your workspace.</p>
+      <p className="mt-3 text-[11px] leading-5 text-[#707c8e]">PDF, DOCX, PPTX, XLSX, TXT, Markdown, CSV, HTML and images up to 50 MB each. Raw files are temporary; the private indexed knowledge remains available to the selected assistant.</p>
     </div>
   );
 }
