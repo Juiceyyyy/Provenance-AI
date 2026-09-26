@@ -2,6 +2,21 @@ import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
 import { isTrustedMutation } from "@/lib/security/request";
 
+export async function GET(_req: Request, { params }: { params: Promise<{ documentId: string }> }) {
+  const { documentId } = await params;
+  const { supabase, userId } = await requireApiUser();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { data, error } = await supabase
+    .from("documents")
+    .select("id,title,status,mime_type,document_versions(status,error_message,processed_at)")
+    .eq("id", documentId)
+    .eq("owner_user_id", userId)
+    .maybeSingle();
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(data, { headers: { "Cache-Control": "private, no-store" } });
+}
+
 export async function DELETE(req: Request, { params }: { params: Promise<{ documentId: string }> }) {
   if (!isTrustedMutation(req)) return NextResponse.json({ error: "Cross-origin request rejected" }, { status: 403 });
   const { documentId } = await params;
