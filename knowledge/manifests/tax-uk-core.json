@@ -2,7 +2,7 @@
   "pack": {
     "name": "United Kingdom Tax Core",
     "slug": "tax-uk-core",
-    "description": "Partial United Kingdom tax reference pack from HM Revenue & Customs guidance and manuals. Applicability depends on taxpayer facts and current legislation.",
+    "description": "Partial United Kingdom tax reference pack from HM Revenue & Customs guidance and manuals. Applicability depends on taxpayer facts, residence and current legislation.",
     "kind": "jurisdiction",
     "bot_types": ["accounting", "legal"],
     "domains": ["accounting", "legal"],
@@ -13,11 +13,19 @@
   },
   "sources": [
     {
+      "title": "Income Tax rates and allowances - current and previous tax years",
+      "canonical_url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+      "publisher": "HM Revenue & Customs",
+      "authority_level": "official",
+      "license_type": "open-government-licence-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
       "title": "HMRC Manuals",
       "canonical_url": "https://www.gov.uk/find-hmrc-manuals",
       "publisher": "HM Revenue & Customs",
       "authority_level": "official",
-      "license_type": "official-public-source-review-required",
+      "license_type": "open-government-licence-review-required",
       "refresh_interval_hours": 168
     }
   ]
