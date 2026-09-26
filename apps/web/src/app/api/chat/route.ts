@@ -99,6 +99,8 @@ export async function POST(req: Request) {
     const modelHistory = messages.slice(-env.CHAT_HISTORY_MESSAGES);
     const modelMessages = await convertToModelMessages(modelHistory);
     const preModelMs = Date.now() - requestStartedAt;
+    const modelStartedAt = Date.now();
+    let firstTextAt: number | null = null;
 
     const result = streamText({
       model: languageModel(),
@@ -107,6 +109,11 @@ export async function POST(req: Request) {
       tools,
       maxRetries: 2,
       abortSignal: req.signal,
+      onChunk: ({ chunk }) => {
+        if (firstTextAt === null && chunk.type === "text-delta" && chunk.text.length > 0) {
+          firstTextAt = Date.now();
+        }
+      },
     });
 
     return result.toUIMessageStreamResponse({
@@ -114,6 +121,7 @@ export async function POST(req: Request) {
       generateMessageId: createIdGenerator({ prefix: "msg", size: 18 }),
       consumeSseStream: consumeStream,
       onFinish: async ({ messages: complete, isAborted }) => {
+        const streamFinishedAt = Date.now();
         await supabase.rpc("save_conversation_messages", { p_conversation_id: conversation.id, p_messages: complete });
         let usage: Awaited<typeof result.usage> | undefined;
         try { usage = await result.usage; } catch { usage = undefined; }
@@ -134,6 +142,9 @@ export async function POST(req: Request) {
             embedding_fallback_reason: retrievalMetrics.embeddingFallbackReason,
             access_ms: accessMs,
             pre_model_ms: preModelMs,
+            ttft_ms: firstTextAt === null ? null : firstTextAt - requestStartedAt,
+            model_ttft_ms: firstTextAt === null ? null : firstTextAt - modelStartedAt,
+            generation_ms: streamFinishedAt - modelStartedAt,
             total_ms: Date.now() - requestStartedAt,
             history_messages: modelHistory.length,
             web_search: parsed.data.webSearch,
