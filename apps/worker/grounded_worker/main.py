@@ -24,6 +24,7 @@ from .security import scan_with_clamav
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 LOG = logging.getLogger("grounded.worker")
 STOP = False
+_EMBEDDING_BATCH_SIZE = 32
 
 
 def _stop(*_: Any) -> None:
@@ -80,9 +81,16 @@ def claim_job(conn: psycopg.Connection[Any], worker_id: str) -> dict[str, Any] |
         return dict(row)
 
 
-def _cloudflare_embedding(client: httpx.Client, settings: Settings, text: str) -> list[float]:
+def _cloudflare_embeddings(
+    client: httpx.Client,
+    settings: Settings,
+    texts: list[str],
+) -> list[list[float]]:
+    if not texts:
+        return []
+
     url = f"https://api.cloudflare.com/client/v4/accounts/{settings.cloudflare_account_id}/ai/v1/embeddings"
-    payload = {"model": settings.embedding_model, "input": text}
+    payload = {"model": settings.embedding_model, "input": texts}
 
     for attempt in range(5):
         response = client.post(
@@ -97,13 +105,32 @@ def _cloudflare_embedding(client: httpx.Client, settings: Settings, text: str) -
             response.raise_for_status()
             body = response.json()
             rows = body.get("data", [])
-            values = rows[0].get("embedding") if rows and isinstance(rows[0], dict) else None
-            if not isinstance(values, list) or len(values) != settings.embedding_dimensions:
+            if not isinstance(rows, list) or len(rows) != len(texts):
                 raise RuntimeError(
-                    "Cloudflare returned invalid embedding dimensions: "
-                    f"{len(values) if isinstance(values, list) else 0}"
+                    "Cloudflare returned an unexpected embedding count: "
+                    f"{len(rows) if isinstance(rows, list) else 0} for {len(texts)} inputs"
                 )
-            return [float(value) for value in values]
+
+            indexed_rows: list[tuple[int, dict[str, Any]]] = []
+            for fallback_index, row in enumerate(rows):
+                if not isinstance(row, dict):
+                    raise RuntimeError("Cloudflare returned an invalid embedding row")
+                raw_index = row.get("index", fallback_index)
+                index = raw_index if isinstance(raw_index, int) else fallback_index
+                indexed_rows.append((index, row))
+            indexed_rows.sort(key=lambda item: item[0])
+
+            embeddings: list[list[float]] = []
+            for _, row in indexed_rows:
+                values = row.get("embedding")
+                if not isinstance(values, list) or len(values) != settings.embedding_dimensions:
+                    raise RuntimeError(
+                        "Cloudflare returned invalid embedding dimensions: "
+                        f"{len(values) if isinstance(values, list) else 0}"
+                    )
+                embeddings.append([float(value) for value in values])
+            return embeddings
+
         if attempt == 4:
             response.raise_for_status()
         retry_after = response.headers.get("retry-after")
@@ -114,7 +141,13 @@ def _cloudflare_embedding(client: httpx.Client, settings: Settings, text: str) -
 
 
 def embed_chunks(client: httpx.Client, settings: Settings, chunks: list[ParsedChunk]) -> list[list[float]]:
-    return [_cloudflare_embedding(client, settings, chunk.embedding_text) for chunk in chunks]
+    embeddings: list[list[float]] = []
+    for offset in range(0, len(chunks), _EMBEDDING_BATCH_SIZE):
+        batch = chunks[offset : offset + _EMBEDDING_BATCH_SIZE]
+        embeddings.extend(
+            _cloudflare_embeddings(client, settings, [chunk.embedding_text for chunk in batch])
+        )
+    return embeddings
 
 
 def vector_literal(values: list[float]) -> str:
