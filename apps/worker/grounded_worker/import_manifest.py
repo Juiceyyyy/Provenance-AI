@@ -28,6 +28,9 @@ def import_manifest(path: str) -> None:
     if invalid_types:
         raise ValueError(f"Unsupported bot types in manifest: {', '.join(invalid_types)}")
 
+    sources = payload.get("sources", [])
+    active_urls = [str(source["canonical_url"]) for source in sources]
+
     settings = Settings.from_env()
     with psycopg.connect(settings.database_url, row_factory=dict_row) as conn, conn.transaction():
         kb = conn.execute(
@@ -58,14 +61,14 @@ def import_manifest(path: str) -> None:
         ).fetchone()
 
         # Treat the manifest as the authoritative active-source set for this pack.
-        # Old URLs remain in the registry for audit/history, but are disabled until
-        # a future manifest explicitly adds them back.
+        # Old URLs remain in the registry for audit/history, while documents sourced
+        # from retired URLs are made non-current so retrieval cannot surface them.
         conn.execute(
             "update public.source_registry set enabled=false where knowledge_base_id=%s",
             (kb["id"],),
         )
 
-        for source in payload.get("sources", []):
+        for source in sources:
             conn.execute(
                 """
                 insert into public.source_registry(
@@ -94,6 +97,30 @@ def import_manifest(path: str) -> None:
                     source.get("license_type"),
                     source.get("refresh_interval_hours", 24),
                 ),
+            )
+
+        if active_urls:
+            conn.execute(
+                """
+                update public.documents d
+                set is_current=false,status='archived',updated_at=now()
+                where d.knowledge_base_id=%s
+                  and d.source_registry_id in (
+                    select s.id from public.source_registry s
+                    where s.knowledge_base_id=%s and s.enabled=false
+                  )
+                  and d.is_current=true
+                """,
+                (kb["id"], kb["id"]),
+            )
+        else:
+            conn.execute(
+                """
+                update public.documents d
+                set is_current=false,status='archived',updated_at=now()
+                where d.knowledge_base_id=%s and d.source_registry_id is not null and d.is_current=true
+                """,
+                (kb["id"],),
             )
 
         for bot_type in bot_types:
@@ -125,7 +152,7 @@ def import_manifest(path: str) -> None:
                     (kb["id"], bot_type),
                 )
 
-    print(f"Imported {pack['slug']} with {len(payload.get('sources', []))} sources")
+    print(f"Imported {pack['slug']} with {len(sources)} sources")
 
 
 def main() -> None:
