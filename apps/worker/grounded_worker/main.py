@@ -114,7 +114,7 @@ def _cloudflare_embeddings(
             indexed_rows: list[tuple[int, dict[str, Any]]] = []
             for fallback_index, row in enumerate(rows):
                 if not isinstance(row, dict):
-                    raise RuntimeError("Cloudflare returned an invalid embedding row")
+                    raise TypeError("Cloudflare returned an invalid embedding row")
                 raw_index = row.get("index", fallback_index)
                 index = raw_index if isinstance(raw_index, int) else fallback_index
                 indexed_rows.append((index, row))
