@@ -14,6 +14,21 @@ _ALLOWED_BOT_TYPES = {"general", "study", "legal", "accounting", "health", "port
 _ALLOWED_COVERAGE = {"active", "partial", "planned", "deprecated"}
 
 
+def _has_canonical_memberships(conn: psycopg.Connection[object]) -> bool:
+    row = conn.execute(
+        """
+        select exists (
+          select 1
+          from information_schema.columns
+          where table_schema='public'
+            and table_name='source_knowledge_bases'
+            and column_name='enabled'
+        ) as available
+        """
+    ).fetchone()
+    return bool(row and row["available"])
+
+
 def import_manifest(path: str) -> None:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     pack = payload["pack"]
@@ -72,40 +87,113 @@ def import_manifest(path: str) -> None:
                 coverage_status,
             ),
         ).fetchone()
+        if not kb:
+            raise RuntimeError("Knowledge pack upsert returned no row")
 
-        conn.execute("update public.source_registry set enabled=false where knowledge_base_id=%s", (kb["id"],))
+        canonical_memberships = _has_canonical_memberships(conn)
+        if canonical_memberships:
+            # Each manifest owns enablement only for its pack membership. The source
+            # row itself is global and becomes enabled when any membership is active.
+            conn.execute(
+                "update public.source_knowledge_bases set enabled=false where knowledge_base_id=%s",
+                (kb["id"],),
+            )
+        else:
+            # Backward-compatible rollout path before the canonical-source migration.
+            conn.execute("update public.source_registry set enabled=false where knowledge_base_id=%s", (kb["id"],))
 
         for source in sources:
-            source_row = conn.execute(
-                """
-                insert into public.source_registry(
-                  knowledge_base_id,title,canonical_url,publisher,authority_level,
-                  jurisdiction_country,jurisdiction_region,license_type,refresh_interval_hours,enabled
-                )
-                values(%s,%s,%s,%s,%s,%s,%s,%s,%s,true)
-                on conflict(knowledge_base_id,canonical_url) do update set
-                  title=excluded.title,
-                  publisher=excluded.publisher,
-                  authority_level=excluded.authority_level,
-                  jurisdiction_country=excluded.jurisdiction_country,
-                  jurisdiction_region=excluded.jurisdiction_region,
-                  license_type=excluded.license_type,
-                  refresh_interval_hours=excluded.refresh_interval_hours,
-                  enabled=true
-                returning id
-                """,
-                (
-                    kb["id"],
-                    source["title"],
-                    source["canonical_url"],
-                    source.get("publisher"),
-                    source.get("authority_level", "reference"),
-                    pack.get("jurisdiction_country"),
-                    pack.get("jurisdiction_region"),
-                    source.get("license_type"),
-                    source.get("refresh_interval_hours", 24),
-                ),
-            ).fetchone()
+            canonical_url = str(source["canonical_url"])
+            if canonical_memberships:
+                source_row = conn.execute(
+                    "select id from public.source_registry where canonical_url=%s limit 1",
+                    (canonical_url,),
+                ).fetchone()
+                if source_row:
+                    conn.execute(
+                        """
+                        update public.source_registry
+                        set title=%s,
+                            publisher=%s,
+                            authority_level=%s,
+                            jurisdiction_country=coalesce(jurisdiction_country,%s),
+                            jurisdiction_region=coalesce(jurisdiction_region,%s),
+                            license_type=coalesce(%s,license_type),
+                            refresh_interval_hours=least(
+                              coalesce(refresh_interval_hours,%s),
+                              coalesce(%s,refresh_interval_hours)
+                            ),
+                            enabled=true
+                        where id=%s
+                        """,
+                        (
+                            source["title"],
+                            source.get("publisher"),
+                            source.get("authority_level", "reference"),
+                            pack.get("jurisdiction_country"),
+                            pack.get("jurisdiction_region"),
+                            source.get("license_type"),
+                            source.get("refresh_interval_hours", 24),
+                            source.get("refresh_interval_hours", 24),
+                            source_row["id"],
+                        ),
+                    )
+                else:
+                    source_row = conn.execute(
+                        """
+                        insert into public.source_registry(
+                          knowledge_base_id,title,canonical_url,publisher,authority_level,
+                          jurisdiction_country,jurisdiction_region,license_type,refresh_interval_hours,enabled
+                        )
+                        values(%s,%s,%s,%s,%s,%s,%s,%s,%s,true)
+                        returning id
+                        """,
+                        (
+                            kb["id"],
+                            source["title"],
+                            canonical_url,
+                            source.get("publisher"),
+                            source.get("authority_level", "reference"),
+                            pack.get("jurisdiction_country"),
+                            pack.get("jurisdiction_region"),
+                            source.get("license_type"),
+                            source.get("refresh_interval_hours", 24),
+                        ),
+                    ).fetchone()
+            else:
+                source_row = conn.execute(
+                    """
+                    insert into public.source_registry(
+                      knowledge_base_id,title,canonical_url,publisher,authority_level,
+                      jurisdiction_country,jurisdiction_region,license_type,refresh_interval_hours,enabled
+                    )
+                    values(%s,%s,%s,%s,%s,%s,%s,%s,%s,true)
+                    on conflict(knowledge_base_id,canonical_url) do update set
+                      title=excluded.title,
+                      publisher=excluded.publisher,
+                      authority_level=excluded.authority_level,
+                      jurisdiction_country=excluded.jurisdiction_country,
+                      jurisdiction_region=excluded.jurisdiction_region,
+                      license_type=excluded.license_type,
+                      refresh_interval_hours=excluded.refresh_interval_hours,
+                      enabled=true
+                    returning id
+                    """,
+                    (
+                        kb["id"],
+                        source["title"],
+                        canonical_url,
+                        source.get("publisher"),
+                        source.get("authority_level", "reference"),
+                        pack.get("jurisdiction_country"),
+                        pack.get("jurisdiction_region"),
+                        source.get("license_type"),
+                        source.get("refresh_interval_hours", 24),
+                    ),
+                ).fetchone()
+
+            if not source_row:
+                raise RuntimeError(f"Source registration returned no row for {canonical_url}")
 
             target_slugs = [str(item) for item in source.get("pack_slugs", [])]
             target_ids = [kb["id"]]
@@ -121,28 +209,88 @@ def import_manifest(path: str) -> None:
                 target_ids.extend(row["id"] for row in rows)
 
             for target_id in dict.fromkeys(target_ids):
+                if canonical_memberships:
+                    conn.execute(
+                        """
+                        insert into public.source_knowledge_bases(source_registry_id,knowledge_base_id,priority,enabled)
+                        values(%s,%s,%s,true)
+                        on conflict(source_registry_id,knowledge_base_id) do update set
+                          priority=excluded.priority,
+                          enabled=true
+                        """,
+                        (source_row["id"], target_id, int(source.get("priority", 50))),
+                    )
+                else:
+                    conn.execute(
+                        """
+                        insert into public.source_knowledge_bases(source_registry_id,knowledge_base_id,priority)
+                        values(%s,%s,%s)
+                        on conflict(source_registry_id,knowledge_base_id) do update set priority=excluded.priority
+                        """,
+                        (source_row["id"], target_id, int(source.get("priority", 50))),
+                    )
+
+            if canonical_memberships:
                 conn.execute(
                     """
-                    insert into public.source_knowledge_bases(source_registry_id,knowledge_base_id,priority)
-                    values(%s,%s,%s)
-                    on conflict(source_registry_id,knowledge_base_id) do update set priority=excluded.priority
+                    insert into public.knowledge_base_documents(knowledge_base_id,document_id,priority)
+                    select sk.knowledge_base_id,d.id,sk.priority
+                    from public.source_knowledge_bases sk
+                    join public.documents d on d.source_registry_id=sk.source_registry_id
+                    where sk.source_registry_id=%s and sk.enabled=true and d.is_current=true
+                    on conflict(knowledge_base_id,document_id) do update set priority=excluded.priority
                     """,
-                    (source_row["id"], target_id, int(source.get("priority", 50))),
+                    (source_row["id"],),
+                )
+            else:
+                conn.execute(
+                    """
+                    insert into public.knowledge_base_documents(knowledge_base_id,document_id,priority)
+                    select sk.knowledge_base_id,d.id,sk.priority
+                    from public.source_knowledge_bases sk
+                    join public.documents d on d.source_registry_id=sk.source_registry_id
+                    where sk.source_registry_id=%s and d.is_current=true
+                    on conflict(knowledge_base_id,document_id) do update set priority=excluded.priority
+                    """,
+                    (source_row["id"],),
                 )
 
+        if canonical_memberships:
+            # Remove retrieval access for sources removed from this manifest without
+            # archiving the canonical document for other packs that still use it.
+            conn.execute(
+                """
+                delete from public.knowledge_base_documents kbd
+                using public.documents d,public.source_knowledge_bases sk
+                where kbd.knowledge_base_id=%s
+                  and kbd.document_id=d.id
+                  and d.source_registry_id=sk.source_registry_id
+                  and sk.knowledge_base_id=%s
+                  and sk.enabled=false
+                """,
+                (kb["id"], kb["id"]),
+            )
             conn.execute(
                 """
                 insert into public.knowledge_base_documents(knowledge_base_id,document_id,priority)
                 select sk.knowledge_base_id,d.id,sk.priority
                 from public.source_knowledge_bases sk
                 join public.documents d on d.source_registry_id=sk.source_registry_id
-                where sk.source_registry_id=%s and d.is_current=true
+                where sk.knowledge_base_id=%s and sk.enabled=true and d.is_current=true
                 on conflict(knowledge_base_id,document_id) do update set priority=excluded.priority
                 """,
-                (source_row["id"],),
+                (kb["id"],),
             )
-
-        if active_urls:
+            conn.execute(
+                """
+                update public.source_registry s
+                set enabled=exists (
+                  select 1 from public.source_knowledge_bases sk
+                  where sk.source_registry_id=s.id and sk.enabled=true
+                )
+                """
+            )
+        elif active_urls:
             conn.execute(
                 """
                 update public.documents d
