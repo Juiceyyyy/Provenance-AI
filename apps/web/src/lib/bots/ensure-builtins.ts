@@ -63,12 +63,12 @@ export async function ensureBuiltinAssistantKnowledge({
         .select("id,jurisdiction_region")
         .eq("visibility", "public")
         .eq("kind", "jurisdiction")
-        .eq("jurisdiction_country", country)
+        .ilike("jurisdiction_country", country)
         .like("slug", `${type}-%`);
+      const requestedRegion = region?.toLocaleLowerCase();
 
       for (const pack of localPacks ?? []) {
-        if (pack.jurisdiction_region && region && pack.jurisdiction_region !== region) continue;
-        if (pack.jurisdiction_region && !region) continue;
+        if (pack.jurisdiction_region && (!requestedRegion || pack.jurisdiction_region.toLocaleLowerCase() !== requestedRegion)) continue;
         links.push({
           bot_id: bot.id,
           knowledge_base_id: pack.id,
