@@ -13,11 +13,27 @@
   },
   "sources": [
     {
+      "title": "Human Rights Act 1998",
+      "canonical_url": "https://www.legislation.gov.uk/ukpga/1998/42/contents",
+      "publisher": "The National Archives",
+      "authority_level": "primary",
+      "license_type": "open-government-licence-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "Consumer Rights Act 2015",
+      "canonical_url": "https://www.legislation.gov.uk/ukpga/2015/15/contents",
+      "publisher": "The National Archives",
+      "authority_level": "primary",
+      "license_type": "open-government-licence-review-required",
+      "refresh_interval_hours": 168
+    },
+    {
       "title": "UK Legislation",
       "canonical_url": "https://www.legislation.gov.uk/",
       "publisher": "The National Archives",
       "authority_level": "official",
-      "license_type": "official-public-source-review-required",
+      "license_type": "open-government-licence-review-required",
       "refresh_interval_hours": 168
     }
   ]
