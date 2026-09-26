@@ -31,7 +31,10 @@ ALLOWED_CONTENT_TYPES = {
 def refresh(source_id: str) -> None:
     settings = Settings.from_env()
     storage = create_client(settings.supabase_url, settings.supabase_service_role_key)
-    with psycopg.connect(settings.database_url, row_factory=dict_row) as conn:
+    # Autocommit keeps the initial registry lookup from holding an idle transaction
+    # open while the remote source is fetched/scanned. Atomic writes still use
+    # explicit conn.transaction() blocks below.
+    with psycopg.connect(settings.database_url, row_factory=dict_row, autocommit=True) as conn:
         source = conn.execute(
             "select s.*,kb.organization_id from public.source_registry s join public.knowledge_bases kb on kb.id=s.knowledge_base_id where s.id=%s and s.enabled=true",
             (source_id,),
