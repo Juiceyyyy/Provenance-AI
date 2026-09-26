@@ -63,7 +63,7 @@ def claim_job(conn: psycopg.Connection[Any], worker_id: str) -> dict[str, Any] |
             """
             select j.id, j.document_version_id, j.attempts, j.max_attempts, j.job_type,
                    v.document_id, v.storage_path, d.knowledge_base_id, d.organization_id,
-                   d.title, d.mime_type
+                   d.owner_user_id, d.title, d.mime_type
             from public.ingestion_jobs j
             join public.document_versions v on v.id=j.document_version_id
             join public.documents d on d.id=v.document_id
@@ -193,6 +193,73 @@ def _parse_chunks(path: str, converter: DocumentConverter) -> list[ParsedChunk]:
     return chunk_document(result.document)
 
 
+def _processed_bytes(chunks: list[ParsedChunk]) -> int:
+    return sum(len(chunk.text.encode("utf-8")) for chunk in chunks)
+
+
+def _assert_private_capacity(conn: psycopg.Connection[Any], job: dict[str, Any], chunks: list[ParsedChunk]) -> None:
+    owner_user_id = job.get("owner_user_id")
+    if not owner_user_id:
+        return
+    row = conn.execute(
+        """
+        select u.processed_bytes,u.chunk_count,l.max_processed_bytes,l.max_chunks,
+               d.processed_byte_size as current_processed_bytes,d.chunk_count as current_chunks
+        from public.documents d
+        join public.user_knowledge_usage u on u.user_id=d.owner_user_id
+        join public.user_knowledge_limits l on l.user_id=d.owner_user_id
+        where d.id=%s
+        """,
+        (job["document_id"],),
+    ).fetchone()
+    if not row:
+        raise RuntimeError("Private knowledge quota state is unavailable")
+
+    proposed_bytes = _processed_bytes(chunks)
+    proposed_chunks = len(chunks)
+    next_bytes = row["processed_bytes"] - row["current_processed_bytes"] + proposed_bytes
+    next_chunks = row["chunk_count"] - row["current_chunks"] + proposed_chunks
+    if next_bytes > row["max_processed_bytes"]:
+        raise RuntimeError("Private processed knowledge byte limit reached")
+    if next_chunks > row["max_chunks"]:
+        raise RuntimeError("Private knowledge chunk limit reached")
+
+
+def _is_quota_error(message: str) -> bool:
+    lowered = message.lower()
+    return "knowledge" in lowered and "limit reached" in lowered
+
+
+def _cleanup_raw_storage(
+    conn: psycopg.Connection[Any],
+    storage: Client,
+    job: dict[str, Any],
+) -> None:
+    storage_path = job.get("storage_path")
+    if not storage_path:
+        return
+    try:
+        storage.storage.from_("documents").remove([storage_path])
+    except Exception as exc:  # noqa: BLE001 - cleanup failure must not corrupt indexed data
+        LOG.warning("Could not delete raw object for %s: %s", job.get("title"), exc)
+        return
+
+    with conn.transaction():
+        conn.execute(
+            "update public.document_versions set storage_path=null where id=%s and storage_path=%s",
+            (job["document_version_id"], storage_path),
+        )
+        conn.execute(
+            "update public.documents set raw_storage_bytes=0 where id=%s",
+            (job["document_id"],),
+        )
+        conn.execute(
+            "update public.ingestion_jobs set metadata=metadata || %s where id=%s",
+            (Jsonb({"raw_deleted": True}), job["id"]),
+        )
+    LOG.info("Deleted transient raw object for %s", job.get("title"))
+
+
 def process_job(
     settings: Settings,
     conn: psycopg.Connection[Any],
@@ -239,10 +306,12 @@ def process_job(
         if not chunks:
             raise RuntimeError("Parser produced no indexable chunks")
 
+    _assert_private_capacity(conn, job, chunks)
     embeddings = embed_chunks(ai, settings, chunks)
     if len(embeddings) != len(chunks):
         raise RuntimeError("Embedding count mismatch")
 
+    processed_bytes = _processed_bytes(chunks)
     with conn.transaction():
         conn.execute("delete from public.chunks where document_version_id=%s", (job["document_version_id"],))
         for chunk, embedding in zip(chunks, embeddings, strict=True):
@@ -270,8 +339,13 @@ def process_job(
             (binary_hash, parser_version, job["document_version_id"]),
         )
         conn.execute(
-            "update public.documents set status='ready', last_verified_at=coalesce(last_verified_at,now()) where id=%s",
-            (job["document_id"],),
+            """
+            update public.documents
+            set status='ready', processed_byte_size=%s, chunk_count=%s,
+                last_verified_at=coalesce(last_verified_at,now())
+            where id=%s
+            """,
+            (processed_bytes, len(chunks), job["document_id"]),
         )
         conn.execute(
             """
@@ -279,19 +353,20 @@ def process_job(
               error_message=null, metadata=metadata || %s
             where id=%s
             """,
-            (Jsonb({"chunks": len(chunks), "sha256": binary_hash, "parser_version": parser_version}), job["id"]),
+            (Jsonb({"chunks": len(chunks), "processed_bytes": processed_bytes, "sha256": binary_hash, "parser_version": parser_version}), job["id"]),
         )
+    _cleanup_raw_storage(conn, storage, job)
     LOG.info("Indexed %s: %d chunks", job["title"], len(chunks))
 
 
-def fail_job(conn: psycopg.Connection[Any], job: dict[str, Any], error: Exception) -> None:
+def fail_job(conn: psycopg.Connection[Any], job: dict[str, Any], error: Exception) -> bool:
     message = str(error)[:4000]
     with conn.transaction():
         row = conn.execute(
             "select attempts,max_attempts from public.ingestion_jobs where id=%s",
             (job["id"],),
         ).fetchone()
-        terminal = row is None or row["attempts"] >= row["max_attempts"]
+        terminal = row is None or row["attempts"] >= row["max_attempts"] or _is_quota_error(message)
         next_status = "failed" if terminal else "queued"
         conn.execute(
             "update public.ingestion_jobs set status=%s,error_message=%s,locked_at=null,locked_by=null,completed_at=case when %s then now() else null end where id=%s",
@@ -306,6 +381,7 @@ def fail_job(conn: psycopg.Connection[Any], job: dict[str, Any], error: Exceptio
             ("failed" if terminal else "queued", job["document_id"]),
         )
     LOG.exception("Ingestion failed for %s: %s", job.get("title"), message)
+    return terminal
 
 
 def run() -> None:
@@ -325,7 +401,9 @@ def run() -> None:
                 try:
                     process_job(settings, conn, storage, ai, converter, curated_pdf_converter, job)
                 except Exception as exc:  # noqa: BLE001 - worker boundary must trap parser/provider failures
-                    fail_job(conn, job, exc)
+                    terminal = fail_job(conn, job, exc)
+                    if terminal:
+                        _cleanup_raw_storage(conn, storage, job)
                 processed += 1
             if settings.one_shot:
                 break
