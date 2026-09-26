@@ -36,12 +36,22 @@ export default async function BotChatPage({ params, searchParams }: { params: Pr
     conversations = [data, ...conversations];
   }
 
-  const { data: stored } = await supabase
-    .from("messages")
-    .select("id,role,parts")
-    .eq("conversation_id", conversation.id)
-    .order("position", { ascending: true });
+  const [{ data: stored }, { data: attachmentRows }] = await Promise.all([
+    supabase
+      .from("messages")
+      .select("id,role,parts")
+      .eq("conversation_id", conversation.id)
+      .order("position", { ascending: true }),
+    supabase
+      .from("conversation_documents")
+      .select("document_id,documents!inner(id,title,status,mime_type)")
+      .eq("conversation_id", conversation.id),
+  ]);
   const initialMessages: UIMessage[] = (stored ?? []).map((message) => ({ id: message.id, role: message.role as UIMessage["role"], parts: message.parts as UIMessage["parts"] }));
+  const initialAttachments = (attachmentRows ?? []).flatMap((row) => {
+    const document = Array.isArray(row.documents) ? row.documents[0] : row.documents;
+    return document ? [{ id: String(document.id), name: String(document.title), status: String(document.status), mimeType: String(document.mime_type || "") }] : [];
+  });
   const preset = BOT_PRESETS[bot.bot_type as BotPresetKey] ?? BOT_PRESETS.general;
 
   return (
@@ -50,6 +60,7 @@ export default async function BotChatPage({ params, searchParams }: { params: Pr
       bot={bot}
       conversationId={conversation.id}
       initialMessages={initialMessages}
+      initialAttachments={initialAttachments}
       starterPrompts={preset.starterPrompts}
       welcomeTitle={preset.welcomeTitle}
       welcomeBody={preset.welcomeBody}
