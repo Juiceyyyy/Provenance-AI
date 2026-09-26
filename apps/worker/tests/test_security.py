@@ -51,15 +51,34 @@ def test_blocks_credentials_and_nonstandard_ports(monkeypatch: pytest.MonkeyPatc
         validate_public_http_url("https://example.test:8443/file")
 
 
-def test_browser_compat_is_limited_to_allowlisted_government_hosts():
-    assert _browser_compat_allowed("https://www.mha.gov.in/file.pdf") is True
-    assert _browser_compat_allowed("https://subdomain.indiacode.nic.in/file.pdf") is True
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://www.mha.gov.in/file.pdf",
+        "https://subdomain.indiacode.nic.in/file.pdf",
+        "https://www.un.org/en/about-us/universal-declaration-of-human-rights",
+        "https://uscode.house.gov/download/download.shtml",
+        "https://www.irs.gov/privacy-disclosure/tax-code-regulations-and-official-guidance",
+        "https://www.sec.gov/about/divisions-offices/division-corporation-finance/financial-reporting-manual",
+        "https://www.cdc.gov/health-topics.html",
+        "https://www.legislation.gov.uk/",
+        "https://www.gov.uk/find-hmrc-manuals",
+        "https://www.nhs.uk/conditions/",
+    ],
+)
+def test_browser_compat_allows_curated_authority_hosts(url: str):
+    assert _browser_compat_allowed(url) is True
+
+
+def test_browser_compat_rejects_unlisted_and_suffix_spoofs():
     assert _browser_compat_allowed("https://example.com/file.pdf") is False
     assert _browser_compat_allowed("https://mha.gov.in.attacker.example/file.pdf") is False
+    assert _browser_compat_allowed("https://irs.gov.attacker.example/file.pdf") is False
+    assert _browser_compat_allowed("https://gov.uk.attacker.example/file.pdf") is False
 
 
 def test_browser_compat_headers_use_same_origin_referer():
     headers = _request_headers("https://www.mha.gov.in/sites/default/files/law.pdf", browser_compat=True)
     assert headers["Referer"] == "https://www.mha.gov.in/"
-    assert headers["Accept-Language"].startswith("en-IN")
+    assert headers["Accept-Language"].startswith("en-US")
     assert "Mozilla/5.0" in headers["User-Agent"]
