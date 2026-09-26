@@ -8,12 +8,27 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & { vari
 
 export function Button({ className, variant = "default", size = "md", ...props }: ButtonProps) {
   const variants: Record<Variant, string> = {
-    default: "bg-[linear-gradient(180deg,#4b90fb,#3b82f6)] text-primary-foreground shadow-[0_8px_24px_rgba(59,130,246,.22)] hover:brightness-105",
-    secondary: "bg-muted text-foreground hover:bg-[#1b2533]",
-    ghost: "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
-    outline: "border border-border bg-transparent text-foreground hover:bg-muted hover:border-[#35548e]",
-    danger: "bg-red-500/15 text-red-300 border border-red-500/25 hover:bg-red-500/20",
+    default: "border border-primary bg-primary text-primary-foreground hover:border-primary-hover hover:bg-primary-hover shadow-[0_1px_0_rgba(255,255,255,.08)_inset]",
+    secondary: "border border-border bg-surface-raised text-foreground hover:border-border-strong hover:bg-muted",
+    ghost: "border border-transparent bg-transparent text-muted-foreground hover:bg-white/[.04] hover:text-foreground",
+    outline: "border border-border bg-transparent text-foreground hover:border-border-strong hover:bg-white/[.025]",
+    danger: "border border-red-500/25 bg-red-500/[.08] text-red-200 hover:border-red-400/35 hover:bg-red-500/[.13]",
   };
-  const sizes: Record<Size, string> = { sm: "h-8 px-3 text-xs", md: "h-10 px-4 text-sm", lg: "h-11 px-5 text-sm", icon: "size-9" };
-  return <button className={cn("inline-flex items-center justify-center gap-2 rounded-lg font-medium transition disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#71a8ff]", variants[variant], sizes[size], className)} {...props} />;
+  const sizes: Record<Size, string> = {
+    sm: "h-9 px-3 text-xs",
+    md: "h-10 px-4 text-sm",
+    lg: "h-11 px-4.5 text-sm",
+    icon: "size-10",
+  };
+  return (
+    <button
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center gap-2 rounded-lg font-medium tracking-[-0.01em] transition disabled:pointer-events-none disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:translate-y-px",
+        variants[variant],
+        sizes[size],
+        className,
+      )}
+      {...props}
+    />
+  );
 }

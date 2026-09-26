@@ -1,6 +1,21 @@
 import Link from "next/link";
+import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AuthShell } from "@/components/auth/auth-shell";
 
 export default function AuthErrorPage() {
-  return <main className="grid min-h-screen place-items-center px-6"><div className="w-full max-w-md rounded-xl border bg-card p-6"><h1 className="text-xl font-semibold">Authentication link could not be verified</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">The link may have expired or already been used. Request a fresh confirmation email from the sign-up flow or sign in if your account is already confirmed.</p><div className="mt-6 flex gap-2"><Link href="/login"><Button>Go to sign in</Button></Link><Link href="/signup"><Button variant="secondary">Create account</Button></Link></div></div></main>;
+  return (
+    <AuthShell compact title="We couldn’t verify that link" description="The authentication link may have expired or already been used.">
+      <div className="rounded-xl border border-border bg-surface p-5">
+        <div className="flex gap-3">
+          <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" />
+          <p className="text-sm leading-6 text-muted-foreground">Request a fresh confirmation email from the sign-up flow, or sign in if your account is already confirmed.</p>
+        </div>
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+          <Link href="/login" className="flex-1"><Button className="w-full">Go to sign in</Button></Link>
+          <Link href="/signup" className="flex-1"><Button variant="secondary" className="w-full">Create account</Button></Link>
+        </div>
+      </div>
+    </AuthShell>
+  );
 }
