@@ -5,86 +5,218 @@
 <h1 align="center">Provenance AI</h1>
 
 <p align="center">
-  Open-source, multi-tenant RAG platform for AI assistants that answer from evidence you can trace.
+  Evidence-grounded AI assistants for private documents, curated knowledge and inspectable answers.
+</p>
+
+<p align="center">
+  <a href="https://provenance-ai-ind.vercel.app"><strong>Live app</strong></a>
+  ·
+  <a href="docs/ARCHITECTURE.md">Architecture</a>
+  ·
+  <a href="docs/SECURITY.md">Security</a>
+  ·
+  <a href="docs/DEPLOYMENT.md">Deployment</a>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-3b82f6.svg" /></a>
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-black" />
   <img alt="Supabase" src="https://img.shields.io/badge/Supabase-Postgres-3ECF8E" />
+  <img alt="Cloudflare Workers AI" src="https://img.shields.io/badge/Workers%20AI-Cloudflare-F38020" />
   <img alt="Python" src="https://img.shields.io/badge/worker-Python-3776AB" />
 </p>
 
 ## What is Provenance?
 
-Provenance is an open-source knowledge platform for specialized AI assistants over private documents, curated knowledge packs, and optionally the live web. Its core principle is simple: important answers should be inspectable back to their sources.
+Provenance is an open-source, multi-tenant RAG platform for specialized AI assistants that work from private files, maintained knowledge packs and optionally the live web.
+
+The product is built around one principle: **important answers should be traceable back to the evidence used to produce them.**
 
 Every workspace receives six ready-to-use built-in assistants:
 
-- Document Analyst
-- Health Information Assistant
-- Legal Research Assistant
-- Portfolio Manager Assistant (allocation, exposure and diversification only; no price forecasts, options calls or market timing)
-- Study Assistant
-- Tax & Accounting Assistant
+- **Document Analyst** — read, compare, summarize and cite private documents
+- **Health** — work from maintained health sources and user-provided material
+- **Legal** — jurisdiction-aware legal research with explicit location context
+- **Portfolio** — deterministic portfolio structure and exposure analysis
+- **Study** — turn source material into guided learning and revision workflows
+- **Tax & Accounting** — work through records and jurisdiction-specific source material
 
-The built-ins are preconfigured but not locked down: users can rename them, add instructions, change jurisdiction/location settings and control web access. Provenance keeps the underlying specialist behavior and safety policy as the default layer. **Custom Assistant** is the only assistant type that requires creation/configuration before first use.
+Built-in assistants are provisioned automatically and are usable immediately. They remain editable, and users can restore their preset defaults at any time. **Custom Assistant** is the only assistant type that requires initial configuration.
 
-Each assistant has a private upload knowledge base. Curated public packs are stored once and linked to applicable assistants instead of being duplicated per user. Location-aware assistants can attach maintained jurisdiction packs from the user's saved setting or an initial coarse deployment-region hint; users can always override that location in assistant settings.
+## Knowledge model
+
+Provenance separates knowledge by scope instead of copying everything into every assistant.
+
+- **Shared curated knowledge** is stored once and can be linked to many assistants or knowledge packs.
+- **Assistant-private knowledge** contains uploads meant only for one assistant.
+- **Global user knowledge** can be made available across that user's assistants.
+- **Conversation attachments** remain scoped to the conversation that received them.
+- **Public canonical sources** are deduplicated so the same source can belong to multiple packs without duplicating its chunks and embeddings.
+- **Jurisdiction packs** attach from the user's saved country/region settings. Provenance does not silently infer a legal jurisdiction.
+
+This keeps authorization explicit while avoiding unnecessary storage duplication.
+
+## RAG pipeline
+
+Provenance combines semantic and lexical retrieval rather than depending on embeddings alone.
+
+```text
+User message
+    │
+    ├── conversation context
+    ├── assistant instructions
+    ├── assistant-private knowledge
+    ├── global user knowledge
+    └── curated / jurisdiction knowledge packs
+    │
+    ▼
+Query embedding + scoped retrieval
+    │
+    ├── PostgreSQL full-text search
+    ├── pgvector semantic search
+    ├── Reciprocal Rank Fusion
+    ├── source / scope / jurisdiction filters
+    └── freshness + effective-date filtering
+    │
+    ▼
+Grounded prompt
+    │
+    ▼
+Cloudflare Workers AI
+    │
+    ▼
+Streaming answer + inspectable citations
+```
+
+Current retrieval/storage design:
+
+- multilingual `@cf/baai/bge-m3` embeddings
+- 1024 embedding dimensions
+- PostgreSQL `halfvec(1024)` storage to reduce vector footprint
+- HNSW vector indexing
+- hybrid lexical + semantic retrieval
+- Reciprocal Rank Fusion
+- scoped retrieval across assistant, user-global and conversation knowledge
+- adaptive retrieval depth
+- stale-source and effective-date filtering
+- query-embedding timeout with lexical fallback
+- canonical-source deduplication across public packs
+
+## Product experience
+
+The web application is designed around a simple assistant-first workspace rather than a configuration dashboard.
+
+- ChatGPT-style responsive sidebar with compact collapsed rail
+- built-in assistants grouped under a single Assistants section
+- `New custom assistant` kept inside the Assistants flow instead of as a separate primary destination
+- full-height desktop navigation that remains fixed while long pages scroll
+- responsive mobile drawer and fixed mobile header
+- scalable conversation history with cursor-based incremental loading
+- drag/drop, paste and upload support inside chat workflows
+- streaming responses with markdown rendering
+- source citations with evidence inspection
+- editable assistant settings and Restore Preset Defaults
+- global custom instructions
+- saved country/region settings for jurisdiction-aware assistants
+- restrained liquid-glass surfaces with reduced-motion support
 
 ## Zero-cost reference deployment
 
-The default deployment path is deliberately designed to avoid billable infrastructure:
+The default deployment path is deliberately designed to stay within free tiers and to **fail rather than silently fall back to billable AI**.
 
-- Supabase Free for Postgres, Auth, pgvector and private Storage
-- Vercel Hobby for the Next.js web app
-- GitHub Actions standard runners on this public repository for batched ingestion and source refresh
-- Cloudflare Workers AI Free for generation and multilingual BGE-M3 embeddings
-- ClamAV in a GitHub Actions service container for fail-closed malware scanning
+| Layer | Default service |
+| --- | --- |
+| Web app | Vercel Hobby |
+| Database / Auth / Storage | Supabase Free |
+| Generation | Cloudflare Workers AI free allocation |
+| Embeddings | Cloudflare Workers AI `bge-m3` |
+| Ingestion / refresh | GitHub Actions |
+| Malware scanning | ClamAV in GitHub Actions |
 
-Cloudflare Workers AI's Free plan provides a daily no-charge allocation; when that allocation is exhausted, requests fail instead of automatically billing. Cloudflare also states that Workers AI Customer Content is not used to train AI models or improve Cloudflare or third-party services without explicit consent. Review the provider's current terms before production use.
+Paid AI fallbacks are disabled by default. `ALLOW_BILLABLE_AI=true` must be set explicitly before an AI Gateway or direct OpenAI fallback may be used.
 
-Paid AI providers are disabled by default. `ALLOW_BILLABLE_AI` must be explicitly set to `true` before the web app may use an AI Gateway or direct OpenAI fallback.
+The hosted ingestion worker is intentionally batch-oriented rather than always-on. New uploads may wait for the next scheduled GitHub Actions run before indexing completes.
 
-The free worker is intentionally batch-oriented rather than always-on. New uploads can wait for the next scheduled GitHub Actions run instead of being indexed instantly.
+## Architecture
+
+```text
+                           ┌──────────────────────────┐
+                           │       Next.js app        │
+                           │ Vercel Hobby · Mumbai    │
+                           └────────────┬─────────────┘
+                                        │
+                         auth / data / retrieval
+                                        │
+                           ┌────────────▼─────────────┐
+                           │        Supabase          │
+                           │ Postgres · Auth · Storage│
+                           │ RLS · FTS · pgvector     │
+                           └───────┬─────────┬────────┘
+                                   │         │
+                           retrieval│         │upload queue
+                                   │         │
+                    ┌──────────────▼─┐   ┌───▼──────────────────┐
+                    │ RAG orchestrator│   │ GitHub Actions worker │
+                    │ hybrid retrieval│   │ Docling · ClamAV      │
+                    └───────┬─────────┘   │ source refresh        │
+                            │             └──────────┬────────────┘
+                            │                        │
+                            └────────────┬───────────┘
+                                         │
+                              ┌──────────▼──────────┐
+                              │ Cloudflare Workers │
+                              │ AI generation +    │
+                              │ BGE-M3 embeddings  │
+                              └─────────────────────┘
+```
+
+A bot is configuration, not a separate service: preset behavior + user instructions + attached knowledge bases + tools + jurisdiction + retrieval/model policy.
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 
 ## Highlights
 
 ### Web application
 
-- Next.js App Router + TypeScript + Tailwind
+- Next.js App Router + TypeScript + Tailwind CSS
 - Supabase SSR authentication and session refresh
-- RLS-protected multi-tenant schema
-- Six auto-provisioned, editable built-in assistants plus user-created Custom assistants
-- Coarse location-derived jurisdiction initialization with saved/user-edited settings taking precedence
-- Private signed document uploads with live status, retry and deletion
-- Streaming AI chat with markdown rendering
-- Hybrid pgvector + PostgreSQL FTS retrieval using Reciprocal Rank Fusion
-- HNSW vector index
-- Effective-date and current-source filtering
-- Clickable RAG citations with source inspection
-- Optional web search per turn
-- Persistent conversation history
-- Daily usage quota reservation
-- Signup confirmation, login/logout and password recovery
+- PostgreSQL Row Level Security for tenant isolation
+- six automatically provisioned built-in assistants
+- user-created Custom assistants
+- private signed document uploads
+- streaming AI chat
+- hybrid RAG with inline citations
+- source inspection
+- optional web search per turn
+- persistent, incrementally loaded conversation history
+- global and assistant-specific knowledge scopes
+- country/region-aware knowledge-pack attachment
+- daily usage-quota reservation
+- signup confirmation, login/logout and password recovery
 
 ### Document ingestion worker
 
 - Python + Docling structural document processing
-- Page, heading and table provenance retention
-- Cloudflare-hosted BGE-M3 multilingual embeddings at 1024 dimensions
+- page, heading and table provenance retention
+- BGE-M3 multilingual embeddings
 - `FOR UPDATE SKIP LOCKED` job claiming
-- One-shot mode for scheduled GitHub Actions execution
-- Retry and stale-lock recovery
-- SHA-256 content hashing and immutable document versions
-- Curated-source refresh with redirect-aware SSRF controls and bounded downloads
-- Fail-closed ClamAV support
-- Shared curated and jurisdiction-pack manifest importer
-- Scheduled manifest registration so known packs remain available and refreshable
+- one-shot execution for scheduled GitHub Actions
+- retry and stale-lock recovery
+- SHA-256 content hashing
+- immutable document versions
+- canonical public-source deduplication
+- redirect-aware SSRF controls
+- bounded source downloads
+- fail-closed ClamAV support
+- shared curated/jurisdiction manifest importer
+- scheduled source registration and refresh
+- transient raw private uploads after processing
 
-### Portfolio Manager
+### Portfolio assistant
 
-The portfolio module deterministically calculates portfolio structure before the LLM explains it:
+Portfolio calculations happen deterministically before the language model explains the results.
+
+The module calculates:
 
 - security weights
 - largest / top-3 / top-5 concentration
@@ -98,35 +230,7 @@ The portfolio module deterministically calculates portfolio structure before the
 - duplicate-security aggregation across accounts
 - concentration and data-quality flags
 
-The assistant policy blocks price targets, expected-return forecasts, security predictions, options strategies, leverage calls and market timing.
-
-## Architecture
-
-```text
-Browser / Next.js
-       │
-       ▼
-RAG orchestrator ───── optional web search
-       │
-       ├── PostgreSQL full-text search
-       ├── pgvector semantic search
-       └── metadata / jurisdiction filters
-       │
-       ▼
-Cloudflare Workers AI + citations
-
-Uploads → private Supabase Storage → ingestion queue
-                                      │
-                                      ▼
-                       scheduled GitHub Actions worker
-                                      │
-                    Docling + ClamAV + Workers AI
-                                      │
-                                      ▼
-                              chunks + embeddings
-```
-
-A bot is configuration, not a separate service: preset behavior + user instructions + attached knowledge bases + tools + jurisdiction + retrieval/model policy. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+The default assistant policy does not provide price targets, expected-return forecasts, options strategies, leverage calls or market-timing instructions.
 
 ## Repository layout
 
@@ -134,25 +238,29 @@ A bot is configuration, not a separate service: preset behavior + user instructi
 .
 ├── apps/
 │   ├── web/                 # Next.js application
-│   └── worker/              # Docling/embedding ingestion worker
+│   └── worker/              # Docling / embedding ingestion worker
 ├── supabase/
-│   ├── migrations/          # schema, RLS, storage, retrieval RPCs
+│   ├── migrations/          # schema, RLS, storage and retrieval RPCs
 │   └── tests/
 ├── knowledge/manifests/     # curated knowledge-pack manifests
 ├── evals/                   # RAG / safety evaluation fixtures
 ├── docs/                    # architecture, security, deployment and eval docs
-└── .github/workflows/       # CI + free scheduled ingestion
+└── .github/workflows/       # CI + scheduled free-tier ingestion
 ```
 
 ## Quick start
 
 ### 1. Create a Supabase project
 
-Create a fresh Supabase project and apply every SQL file in `supabase/migrations` in lexical order. Do not reuse an unrelated production database. The migrations provision the six built-in assistants for each workspace automatically.
+Create a fresh Supabase project and apply every SQL file in `supabase/migrations` in lexical order.
 
-### 2. Configure the free AI provider
+Do not reuse an unrelated production database. The migrations create the schema, RLS rules, retrieval functions, storage controls and built-in assistant infrastructure.
 
-Create a Workers AI API token and copy your Cloudflare Account ID. The defaults are:
+### 2. Configure environment variables
+
+Copy `.env.example` and configure Supabase plus the free AI provider.
+
+Core AI defaults:
 
 ```text
 CLOUDFLARE_ACCOUNT_ID=
@@ -163,12 +271,20 @@ EMBEDDING_DIMENSIONS=1024
 ALLOW_BILLABLE_AI=false
 ```
 
-Copy `.env.example` for the complete environment contract. Never commit populated secrets.
+Never commit populated secrets.
 
 ### 3. Start the web app
 
+From the repository root:
+
 ```bash
-cd apps/web
+npm install
+npm --workspace apps/web run dev
+```
+
+Or from `apps/web`:
+
+```bash
 npm install
 npm run dev
 ```
@@ -183,43 +299,94 @@ pip install . --extra-index-url https://download.pytorch.org/whl/cpu
 grounded-worker
 ```
 
-For the hosted zero-cost path, configure the repository secrets documented in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md); `.github/workflows/free-worker.yml` then registers known manifests, refreshes due sources and processes queued documents every 15 minutes.
+On Windows PowerShell:
 
-### 5. Smoke test
+```powershell
+cd apps/worker
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install . --extra-index-url https://download.pytorch.org/whl/cpu
+grounded-worker
+```
+
+For the hosted zero-cost path, configure the repository secrets documented in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). `.github/workflows/free-worker.yml` then registers known manifests, refreshes due sources and processes queued documents on its schedule.
+
+## Smoke test
+
+After setup:
 
 1. Create and confirm an account.
-2. Open the already-provisioned Document Analyst.
-3. Upload a PDF and wait for status `ready`.
-4. Ask a question that requires the PDF.
-5. Open a citation and verify its page/section text.
-6. Open Legal / Tax & Accounting and verify the configured jurisdiction in assistant settings.
-7. Create a second test user and verify tenant isolation.
-8. Import a portfolio CSV and use the already-provisioned Portfolio Manager assistant.
-9. Create a Custom Assistant and verify it remains isolated from the built-ins.
+2. Verify the six built-in assistants are available without manual configuration.
+3. Open Document Analyst and upload a PDF.
+4. Wait for the document to reach `ready`.
+5. Ask a question that requires information from that PDF.
+6. Open a citation and verify its page/section evidence.
+7. Open Legal or Tax & Accounting and explicitly configure/verify the intended country/region.
+8. Create a second test user and verify tenant isolation.
+9. Import a portfolio CSV and inspect deterministic portfolio metrics.
+10. Create a Custom Assistant and verify its private knowledge remains isolated from other assistants.
 
-## Professional knowledge packs
+## Knowledge packs
 
-The repository contains maintained pack definitions and source registries without claiming exhaustive legal, tax or clinical coverage. India legal/tax starter packs register official Government of India sources. The health baseline includes a global WHO pack plus an India-specific public-health/guideline pack. Registered packs are refreshed and versioned by the source pipeline.
+The repository contains maintained pack definitions and source registries without claiming exhaustive legal, tax or clinical coverage.
 
-Jurisdiction packs are intentionally curated and cached rather than blindly mirroring every law, tax page and clinical document worldwide. Operators can add country/region manifests from authoritative sources; once registered, a pack is retained/versioned and automatically attached to matching location-aware assistants. This avoids silently serving stale or unlicensed material while remaining compatible with the free reference deployment.
+Current pack architecture supports shared global sources plus country/region-specific packs. India legal/accounting and global/India health packs can be registered through the source pipeline. A single canonical source may belong to multiple knowledge packs without duplicating its stored chunks.
 
-Production operators remain responsible for source licensing/redistribution review, freshness, domain-specific evaluation and professional-assistant disclosures.
+Jurisdiction-aware assistants use the user's saved location setting. Operators are responsible for source licensing, redistribution rights, freshness, domain-specific evaluation and professional-assistant disclosures.
 
-## Security
+## Security and privacy
 
-The LLM does not decide authorization. Access is enforced by PostgreSQL Row Level Security and private Storage policies. Retrieved documents and web content are treated as untrusted evidence, so prompt injection in a document cannot grant database permissions.
+The language model does not decide authorization.
 
-Uploaded/source documents can be scanned fail-closed through ClamAV before parsing. The zero-cost hosted workflow provides ClamAV as an isolated Actions service container.
+Access is enforced by PostgreSQL Row Level Security, authenticated server-side operations and private Storage policies. Retrieved documents and web content are treated as untrusted evidence, so prompt injection inside a document cannot grant database permissions.
+
+Additional protections include:
+
+- private per-user uploads
+- scoped assistant and conversation retrieval
+- signed uploads
+- raw-upload quotas and processed-data quotas
+- SSRF controls for curated-source refresh
+- bounded downloads
+- optional fail-closed ClamAV scanning
+- same-origin checks for mutation endpoints
+- no automatic paid-AI fallback
 
 Please read [`docs/SECURITY.md`](docs/SECURITY.md). To report a vulnerability, follow [`.github/SECURITY.md`](.github/SECURITY.md).
 
+## Development checks
+
+The main CI validates both the web app and ingestion worker.
+
+```bash
+npm run typecheck
+npm run lint
+npm run build
+```
+
+Worker checks:
+
+```bash
+cd apps/worker
+ruff check .
+pytest
+```
+
 ## Deployment
 
-The zero-cost reference split is:
+The reference production split is:
 
 - `apps/web` → Vercel Hobby
 - Supabase Free → Postgres / Auth / Storage / pgvector
-- `.github/workflows/free-worker.yml` → scheduled ingestion, manifest registration and source refresh
-- Cloudflare Workers AI Free → generation and embeddings
+- `.github/workflows/free-worker.yml` → ingestion, manifest registration, cleanup and source refresh
+- Cloudflare Workers AI → generation and BGE-M3 embeddings
+
+The web app is configured for a single Vercel function region close to the current Supabase deployment to avoid unnecessary cross-region database latency.
+
+Automatic Git deployments are intentionally restricted so feature branches do not consume unnecessary Hobby preview-build capacity; `main` remains the production branch.
 
 No Render resource is required by the default deployment.
+
+## License
+
+Released under the [MIT License](LICENSE).
