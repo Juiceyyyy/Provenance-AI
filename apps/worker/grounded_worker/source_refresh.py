@@ -67,6 +67,17 @@ def refresh(source_id: str) -> None:
                     """,
                     (source_id,),
                 )
+                conn.execute(
+                    """
+                    insert into public.knowledge_base_documents(knowledge_base_id,document_id,priority)
+                    select sk.knowledge_base_id,d.id,sk.priority
+                    from public.source_knowledge_bases sk
+                    join public.documents d on d.source_registry_id=sk.source_registry_id
+                    where sk.source_registry_id=%s and d.is_current=true
+                    on conflict(knowledge_base_id,document_id) do update set priority=excluded.priority
+                    """,
+                    (source_id,),
+                )
             print("No content change")
             return
 
@@ -97,7 +108,6 @@ def refresh(source_id: str) -> None:
                         "select coalesce(max(version_number),0)+1 n from public.document_versions where document_id=%s",
                         (document_id,),
                     ).fetchone()["n"]
-                    # Do not archive or delete the last ready version. Retrieval continues to use it until this version is ready.
                     conn.execute(
                         """update public.documents set status='queued',is_current=true,title=%s,mime_type=%s,source_url=%s,publisher=%s,
                            authority_level=%s,jurisdiction_country=%s,jurisdiction_region=%s,last_verified_at=now() where id=%s""",
@@ -117,6 +127,18 @@ def refresh(source_id: str) -> None:
                         ),
                     ).fetchone()["id"]
                     next_version = 1
+
+                conn.execute(
+                    """
+                    insert into public.knowledge_base_documents(knowledge_base_id,document_id,priority)
+                    select sk.knowledge_base_id,%s,sk.priority
+                    from public.source_knowledge_bases sk
+                    where sk.source_registry_id=%s
+                    on conflict(knowledge_base_id,document_id) do update set priority=excluded.priority
+                    """,
+                    (document_id, source_id),
+                )
+
                 version_id = conn.execute(
                     "insert into public.document_versions(document_id,version_number,storage_path,content_hash,status) values(%s,%s,%s,%s,'queued') returning id",
                     (document_id, next_version, storage_path, digest),
