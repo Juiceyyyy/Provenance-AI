@@ -13,11 +13,19 @@
   },
   "sources": [
     {
+      "title": "Publication 17 - Your Federal Income Tax",
+      "canonical_url": "https://www.irs.gov/publications/p17",
+      "publisher": "Internal Revenue Service",
+      "authority_level": "official",
+      "license_type": "us-government-public-domain",
+      "refresh_interval_hours": 168
+    },
+    {
       "title": "Tax Code, Regulations and Official Guidance",
       "canonical_url": "https://www.irs.gov/privacy-disclosure/tax-code-regulations-and-official-guidance",
       "publisher": "Internal Revenue Service",
       "authority_level": "official",
-      "license_type": "official-public-source-review-required",
+      "license_type": "us-government-public-domain",
       "refresh_interval_hours": 168
     }
   ]
