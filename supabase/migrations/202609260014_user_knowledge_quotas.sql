@@ -78,7 +78,7 @@ select p.id,
        coalesce(sum(d.chunk_count),0)::integer
 from public.profiles p
 left join public.documents d on d.owner_user_id=p.id
- group by p.id
+group by p.id
 on conflict(user_id) do update set
   document_count=excluded.document_count,
   raw_storage_bytes=excluded.raw_storage_bytes,
@@ -131,6 +131,9 @@ declare
   next_processed bigint;
   next_chunks bigint;
 begin
+  if tg_op='UPDATE' and new.owner_user_id is distinct from old.owner_user_id then
+    raise exception 'Document knowledge ownership cannot be reassigned' using errcode='23514';
+  end if;
   if new.owner_user_id is null then
     return new;
   end if;
@@ -145,9 +148,6 @@ begin
     next_processed := use_row.processed_bytes + new.processed_byte_size;
     next_chunks := use_row.chunk_count + new.chunk_count;
   else
-    if new.owner_user_id is distinct from old.owner_user_id then
-      raise exception 'Document knowledge ownership cannot be reassigned' using errcode='23514';
-    end if;
     next_documents := use_row.document_count;
     next_raw := use_row.raw_storage_bytes - old.raw_storage_bytes + new.raw_storage_bytes;
     next_processed := use_row.processed_bytes - old.processed_byte_size + new.processed_byte_size;
@@ -188,7 +188,9 @@ begin
       updated_at=now()
     where user_id=new.owner_user_id;
     return new;
-  elsif tg_op='UPDATE' and new.owner_user_id is not null then
+  end if;
+
+  if tg_op='UPDATE' and new.owner_user_id is not null then
     update public.user_knowledge_usage set
       raw_storage_bytes=greatest(0,raw_storage_bytes-old.raw_storage_bytes+new.raw_storage_bytes),
       processed_bytes=greatest(0,processed_bytes-old.processed_byte_size+new.processed_byte_size),
@@ -196,7 +198,9 @@ begin
       updated_at=now()
     where user_id=new.owner_user_id;
     return new;
-  elsif tg_op='DELETE' and old.owner_user_id is not null then
+  end if;
+
+  if tg_op='DELETE' and old.owner_user_id is not null then
     update public.user_knowledge_usage set
       document_count=greatest(0,document_count-1),
       raw_storage_bytes=greatest(0,raw_storage_bytes-old.raw_storage_bytes),
@@ -206,7 +210,8 @@ begin
     where user_id=old.owner_user_id;
     return old;
   end if;
-  return coalesce(new,old);
+
+  return null;
 end;
 $$;
 
@@ -256,9 +261,6 @@ begin
   end if;
 
   perform private.ensure_user_knowledge_rows(uid);
-  delete from public.knowledge_upload_reservations r
-    where r.user_id=uid and r.consumed_at is null and r.expires_at<=now();
-
   select * into lim from public.user_knowledge_limits where user_id=uid for update;
   select * into use_row from public.user_knowledge_usage where user_id=uid for update;
   select coalesce(sum(r.byte_size),0)::bigint,count(*)::integer
