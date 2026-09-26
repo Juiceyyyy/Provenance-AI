@@ -17,6 +17,8 @@ const schema = z.object({
   OPENAI_MODEL: z.string().min(1).optional(),
   DAILY_MESSAGE_LIMIT: z.coerce.number().int().positive().default(200),
   MAX_RAG_CHUNKS: z.coerce.number().int().min(1).max(30).default(10),
+  EMBEDDING_TIMEOUT_MS: z.coerce.number().int().min(500).max(10_000).default(2500),
+  CHAT_HISTORY_MESSAGES: z.coerce.number().int().min(8).max(40).default(20),
 });
 
 export const env = schema.parse({
@@ -35,4 +37,6 @@ export const env = schema.parse({
   OPENAI_MODEL: process.env.OPENAI_MODEL,
   DAILY_MESSAGE_LIMIT: process.env.DAILY_MESSAGE_LIMIT,
   MAX_RAG_CHUNKS: process.env.MAX_RAG_CHUNKS,
+  EMBEDDING_TIMEOUT_MS: process.env.EMBEDDING_TIMEOUT_MS,
+  CHAT_HISTORY_MESSAGES: process.env.CHAT_HISTORY_MESSAGES,
 });
