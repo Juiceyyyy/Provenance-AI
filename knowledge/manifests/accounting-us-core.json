@@ -1,0 +1,24 @@
+{
+  "pack": {
+    "name": "United States Accounting Core",
+    "slug": "accounting-us-core",
+    "description": "Partial United States public-company financial reporting reference pack from the Securities and Exchange Commission. It is not a complete substitute for all applicable accounting standards.",
+    "kind": "jurisdiction",
+    "bot_types": ["accounting"],
+    "domains": ["accounting"],
+    "coverage_status": "partial",
+    "jurisdiction_country": "United States",
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "SEC Financial Reporting Manual",
+      "canonical_url": "https://www.sec.gov/about/divisions-offices/division-corporation-finance/financial-reporting-manual",
+      "publisher": "U.S. Securities and Exchange Commission",
+      "authority_level": "regulator",
+      "license_type": "official-public-source-review-required",
+      "refresh_interval_hours": 168
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "pack": {
+    "name": "United Kingdom Health Core",
+    "slug": "health-uk-core",
+    "description": "Partial United Kingdom patient-health reference pack from the NHS. Country-specific service differences and professional clinical advice still apply.",
+    "kind": "jurisdiction",
+    "bot_types": ["health"],
+    "domains": ["health"],
+    "coverage_status": "partial",
+    "jurisdiction_country": "United Kingdom",
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "NHS Conditions A to Z",
+      "canonical_url": "https://www.nhs.uk/conditions/",
+      "publisher": "National Health Service",
+      "authority_level": "official",
+      "license_type": "official-public-source-review-required",
+      "refresh_interval_hours": 168
+    }
+  ]
+}

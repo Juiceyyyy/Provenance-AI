@@ -1,0 +1,24 @@
+{
+  "pack": {
+    "name": "International Legal Core",
+    "slug": "legal-global-core",
+    "description": "International and cross-border legal reference material. Inclusion does not mean an instrument is automatically binding in every country; assistants must verify domestic applicability, ratification and implementation.",
+    "kind": "curated",
+    "bot_types": ["legal"],
+    "domains": ["legal"],
+    "coverage_status": "partial",
+    "jurisdiction_country": null,
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "Universal Declaration of Human Rights",
+      "canonical_url": "https://www.un.org/en/about-us/universal-declaration-of-human-rights",
+      "publisher": "United Nations",
+      "authority_level": "official",
+      "license_type": "official-public-source-review-required",
+      "refresh_interval_hours": 720
+    }
+  ]
+}

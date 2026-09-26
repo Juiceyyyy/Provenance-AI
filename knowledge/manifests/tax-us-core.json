@@ -1,0 +1,24 @@
+{
+  "pack": {
+    "name": "United States Tax Core",
+    "slug": "tax-us-core",
+    "description": "Partial United States federal tax reference pack from the Internal Revenue Service. State and local tax rules are not implied by this pack.",
+    "kind": "jurisdiction",
+    "bot_types": ["accounting", "legal"],
+    "domains": ["accounting", "legal"],
+    "coverage_status": "partial",
+    "jurisdiction_country": "United States",
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "Tax Code, Regulations and Official Guidance",
+      "canonical_url": "https://www.irs.gov/privacy-disclosure/tax-code-regulations-and-official-guidance",
+      "publisher": "Internal Revenue Service",
+      "authority_level": "official",
+      "license_type": "official-public-source-review-required",
+      "refresh_interval_hours": 168
+    }
+  ]
+}

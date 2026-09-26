@@ -1,0 +1,24 @@
+{
+  "pack": {
+    "name": "United Kingdom Legal Core",
+    "slug": "legal-uk-core",
+    "description": "Partial United Kingdom legislation reference pack from the official legislation service. Territorial extent and differences among England and Wales, Scotland and Northern Ireland must be checked for specific matters.",
+    "kind": "jurisdiction",
+    "bot_types": ["legal"],
+    "domains": ["legal"],
+    "coverage_status": "partial",
+    "jurisdiction_country": "United Kingdom",
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "UK Legislation",
+      "canonical_url": "https://www.legislation.gov.uk/",
+      "publisher": "The National Archives",
+      "authority_level": "official",
+      "license_type": "official-public-source-review-required",
+      "refresh_interval_hours": 168
+    }
+  ]
+}

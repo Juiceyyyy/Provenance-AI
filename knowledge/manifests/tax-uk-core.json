@@ -1,0 +1,24 @@
+{
+  "pack": {
+    "name": "United Kingdom Tax Core",
+    "slug": "tax-uk-core",
+    "description": "Partial United Kingdom tax reference pack from HM Revenue & Customs guidance and manuals. Applicability depends on taxpayer facts and current legislation.",
+    "kind": "jurisdiction",
+    "bot_types": ["accounting", "legal"],
+    "domains": ["accounting", "legal"],
+    "coverage_status": "partial",
+    "jurisdiction_country": "United Kingdom",
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "HMRC Manuals",
+      "canonical_url": "https://www.gov.uk/find-hmrc-manuals",
+      "publisher": "HM Revenue & Customs",
+      "authority_level": "official",
+      "license_type": "official-public-source-review-required",
+      "refresh_interval_hours": 168
+    }
+  ]
+}

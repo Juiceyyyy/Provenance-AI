@@ -1,0 +1,24 @@
+{
+  "pack": {
+    "name": "United States Legal Core",
+    "slug": "legal-us-core",
+    "description": "Partial United States federal legal reference pack from official federal sources. State law and uncaptured federal authorities require separate verification.",
+    "kind": "jurisdiction",
+    "bot_types": ["legal"],
+    "domains": ["legal"],
+    "coverage_status": "partial",
+    "jurisdiction_country": "United States",
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "United States Code - Office of the Law Revision Counsel",
+      "canonical_url": "https://uscode.house.gov/download/download.shtml",
+      "publisher": "Office of the Law Revision Counsel, U.S. House of Representatives",
+      "authority_level": "official",
+      "license_type": "official-public-source-review-required",
+      "refresh_interval_hours": 168
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "pack": {
+    "name": "United States Health Core",
+    "slug": "health-us-core",
+    "description": "Partial United States public-health reference pack from the Centers for Disease Control and Prevention. It supplements, rather than replaces, patient-specific clinical advice.",
+    "kind": "jurisdiction",
+    "bot_types": ["health"],
+    "domains": ["health"],
+    "coverage_status": "partial",
+    "jurisdiction_country": "United States",
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "CDC Health Topics",
+      "canonical_url": "https://www.cdc.gov/health-topics.html",
+      "publisher": "Centers for Disease Control and Prevention",
+      "authority_level": "official",
+      "license_type": "official-public-source-review-required",
+      "refresh_interval_hours": 168
+    }
+  ]
+}
