@@ -1,0 +1,32 @@
+{
+  "pack": {
+    "name": "United States Corporate & Reporting Core",
+    "slug": "corporate-us-core",
+    "description": "Shared United States corporate and public-company reporting references used by both Legal and Tax & Accounting assistants. This pack is intentionally indexed once and attached to multiple domains.",
+    "kind": "jurisdiction",
+    "bot_types": ["legal", "accounting"],
+    "domains": ["legal", "accounting"],
+    "coverage_status": "partial",
+    "jurisdiction_country": "United States",
+    "jurisdiction_region": null,
+    "version": "2026.09"
+  },
+  "sources": [
+    {
+      "title": "Regulation S-X - Form and Content of Financial Statements",
+      "canonical_url": "https://www.ecfr.gov/current/title-17/chapter-II/part-210",
+      "publisher": "Electronic Code of Federal Regulations",
+      "authority_level": "official",
+      "license_type": "us-government-public-domain",
+      "refresh_interval_hours": 168
+    },
+    {
+      "title": "SEC Financial Reporting Manual",
+      "canonical_url": "https://www.sec.gov/about/divisions-offices/division-corporation-finance/financial-reporting-manual",
+      "publisher": "U.S. Securities and Exchange Commission",
+      "authority_level": "regulator",
+      "license_type": "us-government-public-domain",
+      "refresh_interval_hours": 168
+    }
+  ]
+}
