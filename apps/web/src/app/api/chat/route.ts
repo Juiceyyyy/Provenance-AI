@@ -5,10 +5,11 @@ import { z } from "zod";
 import { requireApiUser } from "@/lib/auth";
 import { languageModel } from "@/lib/ai/models";
 import { buildSystemPrompt, type BotRecord } from "@/lib/bots/system-prompt";
-import { retrieveChunks, chunksToContext } from "@/lib/rag/retrieve";
+import { retrieveChunks, chunksToContext, startQueryEmbedding, type RetrievalMetrics } from "@/lib/rag/retrieve";
 import { assertUsageAvailable } from "@/lib/security/usage";
 import { isTrustedMutation } from "@/lib/security/request";
 import { getPortfolioContext } from "@/lib/portfolio/server";
+import { env } from "@/lib/env";
 
 export const maxDuration = 60;
 const bodySchema = z.object({ messages: z.array(z.unknown()).min(1).max(100), botId: z.string().uuid(), conversationId: z.string().uuid(), webSearch: z.boolean().default(false) });
@@ -25,7 +26,16 @@ function latestUserText(messages: UIMessage[]) {
     .slice(0, 16_000);
 }
 
+const EMPTY_RETRIEVAL_METRICS: RetrievalMetrics = {
+  embeddingMs: 0,
+  retrievalMs: 0,
+  embeddingFallback: true,
+  embeddingFallbackReason: "empty-query",
+  matchCount: 0,
+};
+
 export async function POST(req: Request) {
+  const requestStartedAt = Date.now();
   try {
     if (!isTrustedMutation(req)) return NextResponse.json({ error: "Cross-origin request rejected" }, { status: 403 });
     const { supabase, userId } = await requireApiUser();
@@ -41,40 +51,59 @@ export async function POST(req: Request) {
     const validated = await safeValidateUIMessages({ messages: parsed.data.messages, tools: validationTools });
     if (!validated.success) return NextResponse.json({ error: "Invalid chat message structure" }, { status: 400 });
     const messages = validated.data;
+    const query = latestUserText(messages);
 
-    await assertUsageAvailable(supabase);
-    const [{ data: bot, error: botError }, { data: profile }] = await Promise.all([
+    // Start the only external RAG network request immediately. It now overlaps quota,
+    // assistant/profile and conversation lookups instead of blocking after all of them.
+    const embeddingPromise = startQueryEmbedding(query);
+    const accessStartedAt = Date.now();
+    const [botResult, profileResult, conversationResult] = await Promise.all([
       supabase
         .from("bots")
         .select("id,name,bot_type,description,instructions,jurisdiction_country,jurisdiction_region,citations_required,web_enabled,organization_id")
         .eq("id", parsed.data.botId)
         .maybeSingle(),
       supabase.from("profiles").select("global_instructions").eq("id", userId).maybeSingle(),
-    ]);
-    if (botError || !bot) return NextResponse.json({ error: "Assistant not found" }, { status: 404 });
+      supabase
+        .from("conversations")
+        .select("id,bot_id")
+        .eq("id", parsed.data.conversationId)
+        .eq("bot_id", parsed.data.botId)
+        .eq("owner_user_id", userId)
+        .maybeSingle(),
+      assertUsageAvailable(supabase),
+    ]).then(([bot, profile, conversation]) => [bot, profile, conversation] as const);
+    const accessMs = Date.now() - accessStartedAt;
 
-    const { data: conversation } = await supabase
-      .from("conversations")
-      .select("id,bot_id")
-      .eq("id", parsed.data.conversationId)
-      .eq("bot_id", bot.id)
-      .eq("owner_user_id", userId)
-      .maybeSingle();
+    const { data: bot, error: botError } = botResult;
+    const { data: profile } = profileResult;
+    const { data: conversation } = conversationResult;
+    if (botError || !bot) return NextResponse.json({ error: "Assistant not found" }, { status: 404 });
     if (!conversation) return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
     if (parsed.data.webSearch && !bot.web_enabled) return NextResponse.json({ error: "Web search is disabled for this assistant" }, { status: 403 });
 
-    const query = latestUserText(messages);
-    const chunks = query ? await retrieveChunks(supabase, bot.id, query, conversation.id) : [];
+    const retrievalPromise = query
+      ? retrieveChunks(supabase, bot.id, query, conversation.id, embeddingPromise)
+      : Promise.resolve({ chunks: [], metrics: EMPTY_RETRIEVAL_METRICS });
+    const portfolioPromise = bot.bot_type === "portfolio"
+      ? getPortfolioContext(supabase, userId)
+      : Promise.resolve(undefined);
+    const [{ chunks, metrics: retrievalMetrics }, portfolioContext] = await Promise.all([
+      retrievalPromise,
+      portfolioPromise,
+    ]);
+
     const ragContext = chunksToContext(chunks);
-    const portfolioContext = bot.bot_type === "portfolio" ? await getPortfolioContext(supabase, userId) : undefined;
     const system = buildSystemPrompt(bot as BotRecord, ragContext, portfolioContext, profile?.global_instructions);
     const tools = parsed.data.webSearch ? validationTools : undefined;
-    const modelHistory = messages.slice(-40);
+    const modelHistory = messages.slice(-env.CHAT_HISTORY_MESSAGES);
+    const modelMessages = await convertToModelMessages(modelHistory);
+    const preModelMs = Date.now() - requestStartedAt;
 
     const result = streamText({
       model: languageModel(),
       system,
-      messages: await convertToModelMessages(modelHistory),
+      messages: modelMessages,
       tools,
       maxRetries: 2,
       abortSignal: req.signal,
@@ -95,7 +124,21 @@ export async function POST(req: Request) {
           bot_id: bot.id,
           input_tokens: usage?.inputTokens ?? null,
           output_tokens: usage?.outputTokens ?? null,
-          metadata: { rag_chunks: chunks.length, scoped_retrieval: true, web_search: parsed.data.webSearch, aborted: isAborted },
+          metadata: {
+            rag_chunks: chunks.length,
+            rag_match_count: retrievalMetrics.matchCount,
+            scoped_retrieval: true,
+            embedding_ms: retrievalMetrics.embeddingMs,
+            retrieval_ms: retrievalMetrics.retrievalMs,
+            embedding_fallback: retrievalMetrics.embeddingFallback,
+            embedding_fallback_reason: retrievalMetrics.embeddingFallbackReason,
+            access_ms: accessMs,
+            pre_model_ms: preModelMs,
+            total_ms: Date.now() - requestStartedAt,
+            history_messages: modelHistory.length,
+            web_search: parsed.data.webSearch,
+            aborted: isAborted,
+          },
         });
         await supabase
           .from("conversations")
