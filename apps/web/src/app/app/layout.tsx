@@ -1,25 +1,21 @@
-import { headers } from "next/headers";
 import { Sidebar } from "@/components/app/sidebar";
 import { requireUser } from "@/lib/auth";
-import { countryNameFromCode, ensureBuiltinAssistantKnowledge } from "@/lib/bots/ensure-builtins";
+import { ensureBuiltinAssistantKnowledge } from "@/lib/bots/ensure-builtins";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { supabase, userId, claims } = await requireUser();
-  const requestHeaders = await headers();
   const { data: profile } = await supabase
     .from("profiles")
     .select("default_country,default_region")
     .eq("id", userId)
     .maybeSingle();
 
-  const detectedCountry = countryNameFromCode(requestHeaders.get("x-vercel-ip-country"));
-  const detectedRegion = requestHeaders.get("x-vercel-ip-country-region");
   await ensureBuiltinAssistantKnowledge({
     supabase,
     userId,
     jurisdiction: {
-      country: profile?.default_country || detectedCountry,
-      region: profile?.default_region || detectedRegion,
+      country: profile?.default_country || null,
+      region: profile?.default_region || null,
     },
   });
 
